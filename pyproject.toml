@@ -62,6 +62,13 @@ include = ["eb_jepa*"]
 [tool.isort]
 profile = "black"
 
+[tool.pytest.ini_options]
+# `examples/` has no __init__.py (intentional namespace package); bare `pytest` (as
+# opposed to `python -m pytest`) doesn't add the repo root to sys.path on its own, so
+# `from examples.eeg.main import ...` in test files fails to resolve. This makes it
+# resolve regardless of invocation style (bare `pytest` or `python -m pytest`).
+pythonpath = ["."]
+
 [dependency-groups]
 dev = [
     "black>=25.1.0",
