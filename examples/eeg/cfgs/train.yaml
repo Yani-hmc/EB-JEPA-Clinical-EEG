@@ -18,9 +18,26 @@ data:
 model:
   in_channels: 19
   out_dim: 256          # latent dim D (encoder output)
-  # TODO: add the hyperparameters your encoder / objective need
-  #       (hidden, depth, projector spec e.g. 256-1024-1024,
-  #        std_coeff, cov_coeff; or n_frames, predictor type, ema for JEPA)
+  encoder_type: conv     # conv | labram | eegpt | biot
+  window_len: 2000       # samples per window (sfreq * window_sec, must match data:)
+  # encoder: conv (EEG1DEncoder)
+  hidden: 64            # base conv width, doubles each of `depth` blocks
+  depth: 4              # number of strided conv blocks (T=2000 -> T'=125)
+  kernel_size: 7
+  # encoder: labram | eegpt | biot (patch transformers, examples/eeg/encoders.py)
+  patch_len: 200         # samples per time-patch (1s @ 200Hz) -> 10 patches/channel
+  embed_dim: 128
+  tr_depth: 4            # transformer layers (distinct from conv's `depth`)
+  n_heads: 4
+  mlp_ratio: 4.0
+  dropout: 0.1
+  # SSL objective (EEGSSL)
+  ssl_loss: vicreg       # vicreg (default) | sigreg (LeJEPA/BCS anti-collapse)
+  projector_spec: 256-1024-1024
+  std_coeff: 1.0         # vicreg only
+  cov_coeff: 1.0         # vicreg only
+  num_slices: 256        # sigreg only
+  lmbd: 10.0             # sigreg only
 optim:
   epochs: 20
   lr: 0.001

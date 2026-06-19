@@ -16,9 +16,14 @@ import os
 import sys
 
 import torch
+import torch.nn as nn
 from omegaconf import OmegaConf
 
+from eb_jepa.architectures import Projector
 from eb_jepa.datasets.eeg.dataset import EEGConfig, make_loader
+from eb_jepa.losses import BCS, VICRegLoss
+from eb_jepa.nn_utils import init_module_weights
+from examples.eeg.encoders import BIOTEncoder, EEGPTEncoder, LaBraMEncoder
 
 # Reuse the eb_jepa core — DO NOT reimplement these:
 #   eb_jepa.architectures: Projector (MLP), RNNPredictor (GRU)
@@ -26,36 +31,118 @@ from eb_jepa.datasets.eeg.dataset import EEGConfig, make_loader
 
 
 # --------------------------------------------------------------------------- #
-# 1) ENCODER  — # TODO
+# 1) ENCODER
 # --------------------------------------------------------------------------- #
+class EEG1DEncoder(nn.Module):
+    """Strided Conv1d stack over [B, C=n_channels, T] -> pooled [B, D].
+
+    Each block halves the time axis (kernel 7, stride 2, BatchNorm1d + GELU).
+    `represent()` global-average-pools the final conv map; `frames()` exposes
+    the pre-pool sequence for a future predictive-JEPA objective.
+    """
+
+    def __init__(self, in_channels: int, hidden: int, depth: int, out_dim: int,
+                 kernel_size: int = 7):
+        super().__init__()
+        widths = [in_channels] + [hidden * (2 ** i) for i in range(depth)]
+        blocks = []
+        for c_in, c_out in zip(widths[:-1], widths[1:]):
+            blocks.append(nn.Conv1d(c_in, c_out, kernel_size=kernel_size, stride=2,
+                                     padding=kernel_size // 2, bias=False))
+            blocks.append(nn.BatchNorm1d(c_out))
+            blocks.append(nn.GELU())
+        self.conv = nn.Sequential(*blocks)
+        self.out_proj = nn.Conv1d(widths[-1], out_dim, kernel_size=1)
+        self.out_dim = out_dim
+        self.apply(init_module_weights)
+
+    def frames(self, x):
+        """[B, C, T] -> [B, F, D] latent sequence (pre pooling)."""
+        h = self.conv(x)            # [B, C', T']
+        h = self.out_proj(h)        # [B, D, T']
+        self.n_frames = h.shape[-1]
+        return h.transpose(1, 2)    # [B, T', D]
+
+    def represent(self, x):
+        """[B, C, T] -> [B, D] global-average-pooled representation."""
+        return self.frames(x).mean(dim=1)
+
+
+_PATCH_ENCODERS = {"labram": LaBraMEncoder, "eegpt": EEGPTEncoder, "biot": BIOTEncoder}
+
+
 def build_encoder(cfg):
-    """TODO: return a 1D encoder mapping an EEG window [B, C=n_channels, T] to a
-    representation. Expose `.represent(x) -> [B, D]` (global pooled over time)
-    and an `.out_dim` attribute. If you go for the predictive objective, also
-    expose `.frames(x) -> [B, F, D]` (a short latent sequence) and `.n_frames`.
-
-    Hints: a strided Conv1d stack (kernel 7, stride 2, BatchNorm + GELU) that
-    downsamples time, followed by global average pooling, is a strong baseline
-    for [B, 19, 2000]. eb_jepa.architectures has 2D image/video encoders to take
-    inspiration from, not a 1D one — so this lives here."""
-    raise NotImplementedError("TODO: build the 1D EEG encoder (see docstring)")
+    """Build the EEG encoder selected by `cfg.encoder_type`:
+      * "conv" (default)        -> EEG1DEncoder (strided Conv1d stack)
+      * "labram"/"eegpt"/"biot" -> architecture-inspired patch transformers
+                                    (see examples/eeg/encoders.py)
+    """
+    encoder_type = cfg.get("encoder_type", "conv")
+    if encoder_type == "conv":
+        return EEG1DEncoder(
+            in_channels=cfg.in_channels,
+            hidden=cfg.get("hidden", 64),
+            depth=cfg.get("depth", 4),
+            out_dim=cfg.out_dim,
+            kernel_size=cfg.get("kernel_size", 7),
+        )
+    if encoder_type in _PATCH_ENCODERS:
+        return _PATCH_ENCODERS[encoder_type](
+            in_channels=cfg.in_channels,
+            window_len=cfg.get("window_len", 2000),
+            patch_len=cfg.get("patch_len", 200),
+            embed_dim=cfg.get("embed_dim", 128),
+            tr_depth=cfg.get("tr_depth", 4),
+            n_heads=cfg.get("n_heads", 4),
+            mlp_ratio=cfg.get("mlp_ratio", 4.0),
+            dropout=cfg.get("dropout", 0.1),
+            out_dim=cfg.out_dim,
+        )
+    raise ValueError(f"unknown model.encoder_type={encoder_type!r}")
 
 
 # --------------------------------------------------------------------------- #
-# 2) SSL OBJECTIVE  — # TODO
+# 2) SSL OBJECTIVE
 # --------------------------------------------------------------------------- #
+class EEGSSL(nn.Module):
+    """Two-view invariance objective: encoder -> Projector -> {VICReg | SIGReg/BCS}.
+
+    `cfg.ssl_loss` selects the anti-collapse term:
+      * "vicreg" (default): eb_jepa.losses.VICRegLoss (variance + covariance)
+      * "sigreg":           eb_jepa.losses.BCS (LeJEPA's Epps-Pulley Gaussianity test)
+    Both losses take the same (z1, z2) projected-view signature, so swapping is a
+    one-line config change (`model.ssl_loss=sigreg`).
+    """
+
+    def __init__(self, encoder, cfg):
+        super().__init__()
+        self.encoder = encoder
+        spec = cfg.get("projector_spec", f"{encoder.out_dim}-1024-1024")
+        self.projector = Projector(spec)
+        self.ssl_loss = cfg.get("ssl_loss", "vicreg")
+        if self.ssl_loss == "vicreg":
+            self.loss_fn = VICRegLoss(std_coeff=cfg.get("std_coeff", 1.0),
+                                       cov_coeff=cfg.get("cov_coeff", 1.0))
+        elif self.ssl_loss == "sigreg":
+            self.loss_fn = BCS(num_slices=cfg.get("num_slices", 256),
+                                lmbd=cfg.get("lmbd", 10.0))
+        else:
+            raise ValueError(f"unknown model.ssl_loss={self.ssl_loss!r}")
+
+    def compute_loss(self, batch):
+        v1, v2 = batch
+        z1 = self.projector(self.encoder.represent(v1))
+        z2 = self.projector(self.encoder.represent(v2))
+        out = self.loss_fn(z1, z2)
+        loss = out["loss"]
+        logs = {k: float(v.item() if torch.is_tensor(v) else v)
+                for k, v in out.items() if k != "loss"}
+        return loss, logs
+
+
 def build_ssl(encoder, cfg):
-    """TODO: return an nn.Module exposing `compute_loss(batch) -> (loss, logs)`.
-    Pick one:
-      * two-view VICReg (natural choice): the dataset already returns (v1, v2);
-        encoder.represent each view -> eb_jepa Projector -> VICRegLoss
-        (invariance + variance + covariance). batch = (v1, v2).
-      * predictive JEPA (optional): encode frames, roll an eb_jepa RNNPredictor
-        from a context frame to predict future frame latents vs an EMA target;
-        add VCLoss (anti-collapse) on the online latents.
-    Keep the variance/covariance (anti-collapse) term — it is what stops the
-    encoder from mapping every window to the same point."""
-    raise NotImplementedError("TODO: assemble the SSL objective (see docstring)")
+    """Build the two-view SSL objective (VICReg or SIGReg/BCS, per cfg.ssl_loss)."""
+    return EEGSSL(encoder, cfg)
 
 
 # --------------------------------------------------------------------------- #

@@ -16,6 +16,9 @@ import sys
 import numpy as np
 import torch
 from omegaconf import OmegaConf
+from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
+from sklearn.neural_network import MLPClassifier
+from sklearn.preprocessing import StandardScaler
 
 from eb_jepa.datasets.eeg.dataset import EEGConfig, EEGDataset
 from examples.eeg.main import build_encoder
@@ -43,25 +46,34 @@ def extract_features(encoder, split, device):
 
 
 # --------------------------------------------------------------------------- #
-# PROBE + METRIC  — # TODO
+# PROBE + METRIC
 # --------------------------------------------------------------------------- #
 def probe(Xtr, ytr, Xev, yev):
-    """TODO: fit a PATIENT-DISJOINT linear probe on the FROZEN train features and
-    score on the held-out-patient eval features. Return a metrics dict.
+    """Fit a PATIENT-DISJOINT MLP probe on the FROZEN train features and score
+    on the held-out-patient eval features. Returns a metrics dict.
 
-    No leakage: standardize features on TRAIN stats only (sklearn StandardScaler
-    fit on Xtr), then fit a LogisticRegression (class_weight='balanced' helps the
-    normal/abnormal imbalance) and score on the eval embeddings. Report:
-        accuracy / balanced-accuracy / AUROC   (normal=0 vs abnormal=1)
+    No leakage: standardize features on TRAIN stats only, then fit an
+    MLPClassifier and score on the eval embeddings (abnormal=1 = positive class).
+    """
+    scaler = StandardScaler().fit(Xtr)
+    Xtr_s, Xev_s = scaler.transform(Xtr), scaler.transform(Xev)
 
-    To make the number meaningful, also run this same probe on (a) a RANDOM
-    untrained encoder (floor) and (b) a supervised end-to-end baseline, and
-    compare. The eval metrics are on held-out patients — stress that."""
-    raise NotImplementedError("TODO: implement the patient-disjoint probe + metric (see docstring)")
+    clf = MLPClassifier(hidden_layer_sizes=(128, 64), early_stopping=True,
+                         max_iter=500, random_state=0)
+    clf.fit(Xtr_s, ytr)
+
+    pred = clf.predict(Xev_s)
+    return {
+        "accuracy": accuracy_score(yev, pred),
+        "f1": f1_score(yev, pred, pos_label=1, zero_division=0),
+        "recall": recall_score(yev, pred, pos_label=1, zero_division=0),
+        "precision": precision_score(yev, pred, pos_label=1, zero_division=0),
+    }
 
 
 def main():
     ckpt = sys.argv[sys.argv.index("--ckpt") + 1]
+    random_floor = "--random-floor" in sys.argv
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     state = torch.load(ckpt, map_location=device, weights_only=False)
@@ -73,7 +85,16 @@ def main():
     Xtr, ytr = extract_features(encoder, "train", device)
     print("[eeg-eval] extracting EVAL embeddings (held-out patients)...", flush=True)
     Xev, yev = extract_features(encoder, "eval", device)
-    print("[eeg-eval]", probe(Xtr, ytr, Xev, yev))
+    print("[eeg-eval] trained encoder:", probe(Xtr, ytr, Xev, yev))
+
+    if random_floor:
+        # Same probe on a freshly-initialized (untrained) encoder — the floor a
+        # trained encoder must clear to show the SSL pretraining did anything.
+        torch.manual_seed(0)
+        rand_encoder = build_encoder(cfg.model).to(device).eval()
+        Xtr_r, ytr_r = extract_features(rand_encoder, "train", device)
+        Xev_r, yev_r = extract_features(rand_encoder, "eval", device)
+        print("[eeg-eval] random floor:  ", probe(Xtr_r, ytr_r, Xev_r, yev_r))
 
 
 if __name__ == "__main__":
