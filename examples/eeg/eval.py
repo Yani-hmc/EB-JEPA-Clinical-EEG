@@ -25,12 +25,17 @@ from examples.eeg.main import build_encoder
 
 
 @torch.no_grad()
-def extract_features(encoder, split, device):
+def extract_features(encoder, split, device, subset_frac=None, subset_seed=0):
     """Provided: frozen encoder -> [N_rec, D] recording-level features + labels.
 
     One embedding per recording: encode its N windows and mean-pool them.
+
+    `subset_frac`/`subset_seed` mirror the training run's data config — e.g. for a
+    fast 5%-of-the-data smoke test, probing should score on the SAME balanced subset
+    pretraining saw, not silently fall back to the full split.
     """
-    ds = EEGDataset(EEGConfig(split=split, mode="probe"))
+    ds = EEGDataset(EEGConfig(split=split, mode="probe",
+                               subset_frac=subset_frac, subset_seed=subset_seed))
     loader = torch.utils.data.DataLoader(ds, batch_size=8, shuffle=False, num_workers=16,
                                          pin_memory=True)
     X, y = [], []
@@ -81,10 +86,16 @@ def main():
     encoder = build_encoder(cfg.model).to(device)
     encoder.load_state_dict(state["encoder"]); encoder.eval()
 
+    subset_frac = cfg.data.get("subset_frac", None)
+    subset_seed = cfg.data.get("subset_seed", 0)
+    if subset_frac:
+        print(f"[eeg-eval] using the same {subset_frac:.0%} balanced subset as training "
+              f"(subset_seed={subset_seed})", flush=True)
+
     print("[eeg-eval] extracting TRAIN embeddings (fit set)...", flush=True)
-    Xtr, ytr = extract_features(encoder, "train", device)
+    Xtr, ytr = extract_features(encoder, "train", device, subset_frac, subset_seed)
     print("[eeg-eval] extracting EVAL embeddings (held-out patients)...", flush=True)
-    Xev, yev = extract_features(encoder, "eval", device)
+    Xev, yev = extract_features(encoder, "eval", device, subset_frac, subset_seed)
     print("[eeg-eval] trained encoder:", probe(Xtr, ytr, Xev, yev))
 
     if random_floor:
@@ -92,8 +103,8 @@ def main():
         # trained encoder must clear to show the SSL pretraining did anything.
         torch.manual_seed(0)
         rand_encoder = build_encoder(cfg.model).to(device).eval()
-        Xtr_r, ytr_r = extract_features(rand_encoder, "train", device)
-        Xev_r, yev_r = extract_features(rand_encoder, "eval", device)
+        Xtr_r, ytr_r = extract_features(rand_encoder, "train", device, subset_frac, subset_seed)
+        Xev_r, yev_r = extract_features(rand_encoder, "eval", device, subset_frac, subset_seed)
         print("[eeg-eval] random floor:  ", probe(Xtr_r, ytr_r, Xev_r, yev_r))
 
 

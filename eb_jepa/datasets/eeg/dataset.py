@@ -49,13 +49,10 @@ class EEGConfig:
     aug_scale_jitter: float = 0.2  # per-channel amplitude scale ~ U(1-j, 1+j)
     aug_chan_drop_p: float = 0.2   # prob a channel is zeroed
     aug_time_mask_frac: float = 0.2  # max fraction of timesteps masked
-
-
-def _list_edf(root: str, split: str) -> List[str]:
-    files = sorted(glob.glob(os.path.join(root, split, "**", "*.edf"), recursive=True))
-    if not files:
-        raise FileNotFoundError(f"No .edf under {os.path.join(root, split)}")
-    return files
+    # Optional class-balanced subsample of this split (for fast smoke-test runs before
+    # committing to the full corpus). None/1.0 = use the full split.
+    subset_frac: Optional[float] = None   # e.g. 0.05 -> ~5% of recordings, 50/50 normal/abnormal
+    subset_seed: int = 0
 
 
 def _list_labelled(root: str, split: str):
@@ -69,6 +66,25 @@ def _list_labelled(root: str, split: str):
         raise FileNotFoundError(
             f"No labelled .edf under {os.path.join(root, split)}/{{normal,abnormal}}")
     return items
+
+
+def _balanced_subset(items, frac: Optional[float], seed: int):
+    """Class-balanced subsample of `frac` of `items` (list of (path, label)): equal
+    counts of normal/abnormal, regardless of the original class proportions."""
+    if not frac or frac >= 1.0:
+        return items
+    by_class = {0: [], 1: []}
+    for p, label in items:
+        by_class[label].append(p)
+    n_per_class = max(1, round(frac * len(items) / 2))
+    rng = np.random.default_rng(seed)
+    chosen = []
+    for label, paths in by_class.items():
+        paths = list(paths)
+        rng.shuffle(paths)
+        chosen += [(p, label) for p in paths[:n_per_class]]
+    rng.shuffle(chosen)
+    return chosen
 
 
 def _zscore(x: np.ndarray, axis: int) -> np.ndarray:
@@ -87,12 +103,14 @@ class EEGDataset(torch.utils.data.Dataset):
                 "pyedflib is required to read EDF files (pip install pyedflib)")
         self.cfg = cfg
         self.window = int(cfg.window_sec * cfg.sfreq)
+        items = _balanced_subset(_list_labelled(cfg.data_root, cfg.split),
+                                  cfg.subset_frac, cfg.subset_seed)
         if cfg.mode == "ssl":
-            self.files = _list_edf(cfg.data_root, cfg.split)
+            self.files = [p for p, _ in items]   # labels unused, but same balanced subset
             self.items = None
         else:  # supervised / probe: one item per recording
             self.files = None
-            self.items = _list_labelled(cfg.data_root, cfg.split)
+            self.items = items
         # one RNG per worker, re-seeded lazily in __getitem__ via torch seed
         self._rng = np.random.default_rng()
 

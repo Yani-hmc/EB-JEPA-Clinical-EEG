@@ -15,6 +15,8 @@ data:
   aug_scale_jitter: 0.2
   aug_chan_drop_p: 0.2
   aug_time_mask_frac: 0.2
+  subset_frac: null        # e.g. 0.05 for a fast, class-balanced 5% smoke-test run
+  subset_seed: 0
 model:
   in_channels: 19
   out_dim: 256          # latent dim D (encoder output)
