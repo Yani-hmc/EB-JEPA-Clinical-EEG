@@ -13,10 +13,12 @@ PYTHON=/lustre/work/vivatech-slightlyunawarefc/yhammache/venvs/eb_jepa_aarch64/b
 REPO=/lustre/work/vivatech-slightlyunawarefc/tvasnier/eb_jepa
 SCRIPT=$REPO/examples/eeg/viz_latents.py
 
-# ── bootstrap pip si nécessaire, puis installer les libs manquantes ──────────
-echo "=== bootstrap pip + deps ==="
+# ── installer libs depuis wheels pré-téléchargés (pas de réseau sur compute) ─
+WHEELS=/lustre/work/vivatech-slightlyunawarefc/tcourtois/wheels
+echo "=== install deps offline ==="
 $PYTHON -m ensurepip --upgrade 2>/dev/null || true
-$PYTHON -m pip install --quiet umap-learn matplotlib 2>/dev/null || true
+$PYTHON -m pip install --quiet --no-index --find-links=$WHEELS \
+    umap-learn matplotlib
 
 echo "=== check deps ==="
 $PYTHON -c "import sklearn; print('sklearn', sklearn.__version__)"
