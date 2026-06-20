@@ -27,6 +27,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.patheffects as pe
 from sklearn.decomposition import PCA
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.manifold import TSNE
 from sklearn.preprocessing import StandardScaler
 import umap
@@ -98,6 +99,33 @@ def do_tsne(X, perplexity=30, n_iter=1000):
         n_components=2, perplexity=min(perplexity, len(Xpca) - 1),
         max_iter=n_iter, random_state=42, init="pca", learning_rate="auto"
     ).fit_transform(Xpca)
+
+
+def do_lda(X, y):
+    """Project onto the single LDA axis (binary: 1 discriminant).
+    Returns 1-D scores — the direction that maximally separates the two classes."""
+    Xs = StandardScaler().fit_transform(X)
+    return LinearDiscriminantAnalysis(n_components=1).fit_transform(Xs, y).ravel()
+
+
+def make_lda_figure(scores, y, title):
+    """Density histogram of LDA scores — the honest separability plot."""
+    fig, ax = plt.subplots(figsize=(7, 4.5))
+    for cls in [0, 1]:
+        mask = y == cls
+        ax.hist(scores[mask], bins=28, alpha=0.55, color=COLORS[cls],
+                label=f"{NAMES[cls]} (n={mask.sum()})", density=True, edgecolor="none")
+    # overlap shading already handled by alpha; add vertical means
+    for cls in [0, 1]:
+        mask = y == cls
+        ax.axvline(scores[mask].mean(), color=COLORS[cls], linewidth=1.8,
+                   linestyle="--", alpha=0.9)
+    ax.set_xlabel("LDA score (supervised projection onto max-separation axis)", labelpad=6)
+    ax.set_ylabel("Density", labelpad=6)
+    ax.set_title(title, fontsize=13, fontweight="bold", pad=10)
+    ax.legend(fontsize=10, framealpha=0.8, edgecolor="#CCCCCC")
+    fig.tight_layout()
+    return fig
 
 
 # ── figure ────────────────────────────────────────────────────────────────────
@@ -187,14 +215,23 @@ def main():
                       "perplexity=30  init=PCA  learning_rate=auto")
     save(fig, os.path.join(args.out, "tsne_tuab.png"))
 
-    # ── figure comparative 3-en-1 ────────────────────────────────────────────
-    fig, axes = plt.subplots(1, 3, figsize=(18, 5))
-    methods = [
+    # ── LDA ──────────────────────────────────────────────────────────────────
+    print("[viz] LDA …", flush=True)
+    scores_lda = do_lda(X, y)
+    fig = make_lda_figure(scores_lda, y,
+                          f"LDA — {tag}\n(supervised projection onto max-separation axis)")
+    save(fig, os.path.join(args.out, "lda_tuab.png"))
+
+    # ── figure comparative 4-en-1 ────────────────────────────────────────────
+    fig = plt.figure(figsize=(22, 5))
+    # 3 scatter panels
+    scatter_specs = [
         (C_pca,  f"PCA\n(PC1={var[0]:.1%}, PC2={var[1]:.1%})"),
         (C_umap, "UMAP\n(cosine, n_neighbors=15)"),
         (C_tsne, "t-SNE\n(perplexity=30)"),
     ]
-    for ax, (C, subtitle) in zip(axes, methods):
+    for i, (C, subtitle) in enumerate(scatter_specs):
+        ax = fig.add_subplot(1, 4, i + 1)
         for cls in [0, 1]:
             mask = y == cls
             ax.scatter(C[mask, 0], C[mask, 1],
@@ -204,6 +241,18 @@ def main():
         ax.set_xlabel("Dim 1"); ax.set_ylabel("Dim 2")
         ax.legend(fontsize=9, markerscale=1.5, framealpha=0.7)
         ax.grid(True, alpha=0.3)
+    # LDA density panel
+    ax4 = fig.add_subplot(1, 4, 4)
+    for cls in [0, 1]:
+        mask = y == cls
+        ax4.hist(scores_lda[mask], bins=28, alpha=0.55, color=COLORS[cls],
+                 label=f"{NAMES[cls]} (n={mask.sum()})", density=True, edgecolor="none")
+        ax4.axvline(scores_lda[mask].mean(), color=COLORS[cls],
+                    linewidth=1.8, linestyle="--", alpha=0.9)
+    ax4.set_title("LDA\n(max-separation axis, uses labels)", fontsize=11, fontweight="bold")
+    ax4.set_xlabel("LDA score"); ax4.set_ylabel("Density")
+    ax4.legend(fontsize=9, framealpha=0.7)
+    ax4.grid(True, alpha=0.3)
     fig.suptitle(f"Espace latent EB-JEPA — {tag}", fontsize=13, fontweight="bold", y=1.02)
     fig.tight_layout()
     save(fig, os.path.join(args.out, "comparison_3methods.png"))
