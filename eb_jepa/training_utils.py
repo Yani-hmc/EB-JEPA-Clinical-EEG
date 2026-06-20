@@ -341,7 +341,9 @@ def get_exp_name(example_name: str, cfg) -> str:
             f"_idm{cfg.model.regularizer.get('idm_coeff')}"
         )
     elif example_name == "eeg":
-        return f"{cfg.model.get('encoder_type', 'conv')}_{cfg.model.get('ssl_loss', 'vicreg')}"
+        objective = cfg.model.get("objective", "twoview")
+        loss_tag = cfg.model.get("ssl_loss", "vicreg") if objective == "twoview" else objective
+        return f"{cfg.model.get('encoder_type', 'conv')}_{loss_tag}"
     else:
         return "exp"
 
