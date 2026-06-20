@@ -243,7 +243,7 @@ $\lambda = 25$ (paper) & 0.789 ± .005 & 3 \\
   \item Context ($0\to T/2$): online encoder $\to$ mean-pool
   \item Target ($T/2\to T$): EMA encoder $\to$ mean-pool
   \item Loss: $\mathrm{MSE}(\hat{z}_{\rm tgt},\ z_{\rm tgt})$
-  \item \textbf{No VICReg, no SIGReg} needed: context and target see \emph{disjoint time spans} — collapse to a constant is architecturally impossible
+  \item \textbf{No VICReg, no SIGReg} needed: collapse resisted by BatchNorm (zero batch variance $\to$ explosion) + EMA lag (non-stationary target)
 \end{itemize}
 
 \vspace{0.5em}
@@ -389,7 +389,40 @@ A linear probe on top beats \textbf{ST-Transformer and CNN-Transformer} trained 
 \end{columns}
 \end{frame}
 
-% ─── 10. SUMMARY (30s) ───────────────────────────────────────────────────────
+% ─── 10. LATENT SPACE VIZ (30s) ─────────────────────────────────────────────
+\begin{frame}{Latent Space — Do the Representations Cluster?}
+\begin{columns}[T]
+\column{0.62\textwidth}
+\IfFileExists{figures/comparison_3methods.png}{%
+  \includegraphics[width=\linewidth]{figures/comparison_3methods.png}
+}{%
+  \begin{center}
+  \textcolor{muted}{\footnotesize [Figure pending — job running on Dalia]}\\
+  \vspace{1cm}
+  \textcolor{muted}{PCA / UMAP / t-SNE — 276 TUAB eval recordings}
+  \end{center}
+}
+\column{0.36\textwidth}
+\textbf{Setup:}
+\begin{itemize}
+  \item Best encoder: Conv1D + VICReg $\lambda{=}1$ + corruption (BACC 0.819)
+  \item 276 TUAB eval recordings
+  \item Mean-pool 16 windows $\to$ 256-dim per patient
+  \item Project to 2D, color by label (\textcolor{blue!80}{blue} = Normal, \textcolor{red!80}{red} = Abnormal)
+\end{itemize}
+
+\vspace{0.5em}
+\textbf{Key question:} does a model trained with \emph{no labels} produce representations that are linearly separable?
+
+\vspace{0.3em}
+\textcolor{good}{\small BACC 0.819 $\Rightarrow$ yes.}
+
+\vspace{0.3em}
+\textcolor{muted}{\footnotesize Labels never used during pretraining — only during the linear probe.}
+\end{columns}
+\end{frame}
+
+% ─── 11. SUMMARY (30s) ───────────────────────────────────────────────────────
 \begin{frame}{Summary}
 
 \begin{columns}[T]
