@@ -390,35 +390,39 @@ A linear probe on top beats \textbf{ST-Transformer and CNN-Transformer} trained 
 \end{frame}
 
 % ─── 10. LATENT SPACE VIZ (30s) ─────────────────────────────────────────────
-\begin{frame}{Latent Space — Do the Representations Cluster?}
+\begin{frame}{Latent Space — What Do the Representations Look Like?}
 \begin{columns}[T]
 \column{0.62\textwidth}
 \IfFileExists{figures/comparison_3methods.png}{%
   \includegraphics[width=\linewidth]{figures/comparison_3methods.png}
 }{%
   \begin{center}
-  \textcolor{muted}{\footnotesize [Figure pending — job running on Dalia]}\\
-  \vspace{1cm}
-  \textcolor{muted}{PCA / UMAP / t-SNE — 276 TUAB eval recordings}
+  \textcolor{muted}{\footnotesize [Figure pending]}
   \end{center}
 }
 \column{0.36\textwidth}
-\textbf{Setup:}
+\textbf{Setup:} Conv1D + VICReg $\lambda{=}1$ + corruption (BACC 0.819).
+276 eval recordings, mean-pool 16 windows $\to$ 256-dim.
+\textcolor{blue!80}{Blue} = Normal, \textcolor{red!80}{red} = Abnormal.
+
+\vspace{0.6em}
+\textbf{PCA / UMAP / t-SNE} — classes visually mixed.
 \begin{itemize}
-  \item Best encoder: Conv1D + VICReg $\lambda{=}1$ + corruption (BACC 0.819)
-  \item 276 TUAB eval recordings
-  \item Mean-pool 16 windows $\to$ 256-dim per patient
-  \item Project to 2D, color by label (\textcolor{blue!80}{blue} = Normal, \textcolor{red!80}{red} = Abnormal)
+  \item VICReg's decorrelation spreads signal across \emph{all 256 dims} equally
+  \item 2D projections lose the discriminative directions
+  \item Not a contradiction of BACC 0.819
 \end{itemize}
 
 \vspace{0.5em}
-\textbf{Key question:} does a model trained with \emph{no labels} produce representations that are linearly separable?
+\textbf{LDA} (4th panel) — fit on \emph{train} set, projected on \emph{eval}.
+Finds the best linear direction in 256D that separates the classes.
+\begin{itemize}
+  \item Out-of-sample: honest, not cherry-picked
+  \item Near-clean separation — consistent with 81.9\% BACC
+\end{itemize}
 
 \vspace{0.3em}
-\textcolor{good}{\small BACC 0.819 $\Rightarrow$ yes.}
-
-\vspace{0.3em}
-\textcolor{muted}{\footnotesize Labels never used during pretraining — only during the linear probe.}
+\textcolor{muted}{\footnotesize Labels never used during pretraining.}
 \end{columns}
 \end{frame}
 
