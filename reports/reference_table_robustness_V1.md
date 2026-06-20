@@ -10,6 +10,7 @@ Companion to `reference_table_JEPA_V1`. Typeset version: `reference_table_robust
 | # | Test | Configuration (vs. tuned model) | Params | per-rec BAcc / AUROC | per-win BAcc / AUROC |
 |---|---|---|---|---|---|
 | 1 | **Tuned model** | Conv · VICReg + spectral 0.1 + corruption · inv=1 · no scale-jitter · 20 ep | 1.35M | **0.824 / 0.896** | 0.755 / 0.839 |
+| 1b | **Tuned — 3-seed** | same recipe, seeds {0,1,2} (mean±std) | 1.35M | 0.812 ± .021 / 0.898 ± .002 | 0.756 ± .001 / 0.836 ± .005 |
 | 2 | **Robustness** | pretrain on **25%** of recordings (4× less data) | 1.35M | 0.816 / 0.895 | 0.762 / 0.842 |
 | 3 | **HP tuning** | invariance weight **inv=25** (VICReg default) instead of 1 | 1.35M | 0.804 / 0.884 | 0.730 / 0.813 |
 | 4 | **Ablation** | remove the **corruption mask** (outliers only) | 1.35M | 0.796 / 0.891 | 0.762 / 0.841 |
@@ -22,6 +23,7 @@ multi-scale-spectral auxiliary term (weight 0.1); exact EB-corruption views *v�
 epochs; frozen-encoder logreg probe.
 
 **What each row shows.**
+- **1b — Seed robustness (important caveat):** per-recording BAcc carries ≈±0.02 seed noise (only 276 recordings, threshold-sensitive; seed 1 dipped to 0.788). Per-**window** BAcc (±.001) and AUROC (±.002) are stable. So the per-rec Δ's in rows 2–4 (<3 pp) sit **within this noise band** — only row 5's −10 pp is statistically unambiguous. Rank configs on per-window / AUROC, not single-seed per-rec.
 - **2 — Robustness to data:** cutting pretraining data 4× costs only 0.8 pp (0.824→0.816) — the encoder is *not* data-starved; it saturates early.
 - **3 — Hyperparameter tuning:** VICReg's vision-default invariance weight (25) is **2 pp worse** than our tuned `inv=1`. EEG SSL prefers *weak* view-invariance (full swept curve: 1 > 5 > 10 > 25).
 - **4 — Augmentation ablation:** the corruption **mask is the single biggest lever** (−2.8 pp when removed); for contrast, scale-jitter and the spectral term are *dead weight* (≈0).
