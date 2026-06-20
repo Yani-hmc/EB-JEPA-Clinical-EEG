@@ -187,3 +187,133 @@ These are different failure modes (see `TECHNICAL_NOTES.md`, taxonomy of failure
 4. **merge conflict resolution** — merged tvasnier's objective fields AND our VICReg coefficients without breaking either training mode.
 
 5. **Audit of published numbers** — every SOTA number checked against source PDF before going into any comparison. Caught two errors before they made it into the presentation.
+
+---
+
+## Bug 3 — Predictive JEPA eval loads the same checkpoint for all encoders
+
+**Severity**: High — all reported predictive JEPA numbers are invalid.
+
+**What was wrong**: `eval_all_full_74861.out` is byte-identical across the four checkpoint dirs
+(`conv_predictive_seed0`, `labram_predictive_seed0`, `biot_predictive_seed0`,
+`eegpt_predictive_seed0`). The eval script resolves the checkpoint path from a hardcoded or
+shared config rather than from the checkpoint directory it is launched from, so it evaluates the
+same model four times and produces identical numbers regardless of encoder type.
+
+**Evidence**: the four `eval_all_full_74861.out` files all report the same four blocks of results
+(accuracy 0.837, 0.775, 0.641, 0.775) in the same order — impossible if different checkpoints
+were loaded.
+
+**Second symptom**: on the small-scale eval (`eval_all_74839.out`), conv and eegpt predictive
+score *below their own random-init floors*, confirming collapsed representations. The anti-collapse
+term (`std_loss`) was near-zero throughout training for all four runs, which is the training-time
+signature of collapse.
+
+**Fix**:
+```python
+# In eval.py / the eval launch script, replace any hardcoded ckpt_dir with:
+ckpt_path = os.path.join(args.ckpt_dir, "latest.pth.tar")
+ckpt = torch.load(ckpt_path, weights_only=False)
+encoder = build_encoder(OmegaConf.create(ckpt["cfg"]["model"]))
+encoder.load_state_dict(ckpt["encoder"])
+```
+The key is that `args.ckpt_dir` must be passed explicitly when launching each eval job, not
+read from a shared config file that all four jobs happen to share.
+
+**Re-run command** (once the eval script is fixed):
+```bash
+for enc in conv labram biot eegpt; do
+  sbatch --reservation=Vivatech --account=vivatech-slightlyunawarefc \
+    eval_predictive.sh \
+    /lustre/work/vivatech-slightlyunawarefc/yhammache/checkpoints/eeg/dev_2026-06-20_03-33/${enc}_predictive_seed0
+done
+```
+
+---
+
+## Suggestion — What a proper naive JEPA baseline looks like (and why ours is not it)
+
+### What we actually ran (`EEGPredictiveJEPA`)
+
+The current `objective=predictive` mode is **not** a standard JEPA baseline. It is:
+- Two **augmented views** (v1, v2) of the **same 10-second window**
+- Online encoder encodes v1 frame-by-frame; EMA target encoder encodes v2 frame-by-frame
+- GRU predictor rolls forward inside v1 and is asked to match v2's frame embeddings at each step
+- Anti-collapse via hinge-std + covariance loss (VICReg primitives)
+
+This conflates two ideas: **temporal prediction** (GRU unrolling) and **two-view invariance**
+(matching v1 to v2). Because v1 and v2 span the *same time*, the "prediction" is really
+augmentation-invariance in disguise, and the GRU has no real temporal task to solve. The
+near-zero `std_loss` throughout training suggests the encoder found a degenerate solution: output
+near-constant vectors that the GRU can easily "predict" with low MSE.
+
+### What a genuine naive JEPA baseline would be
+
+A minimal, honest JEPA baseline follows I-JEPA (Assran et al., 2023) applied to EEG:
+
+1. **No augmentations.** Take a single raw EEG window. Split it temporally: frames 0..K-1
+   are the context, frames K..F-1 are the target. The asymmetry between context and target
+   is what prevents collapse — no VICReg-style terms needed.
+2. **Online encoder** sees only the context frames and produces context embeddings.
+3. **EMA target encoder** (momentum ≈ 0.996, same as now) sees only the target frames and
+   produces target embeddings. No gradient flows into the target encoder.
+4. **Predictor** (can be a simple MLP or shallow Transformer, not a GRU) takes context
+   embeddings + positional information about *which* target frames to predict, and outputs
+   predicted target embeddings.
+5. **Loss**: MSE between predicted and EMA-target embeddings. Nothing else.
+
+```python
+class NaiveJEPA(nn.Module):
+    """Minimal I-JEPA-style baseline for EEG. No augmentations, no anti-collapse term."""
+
+    def __init__(self, encoder, context_ratio=0.5, ema=0.996):
+        super().__init__()
+        self.online = encoder
+        self.target = copy.deepcopy(encoder)
+        for p in self.target.parameters():
+            p.requires_grad_(False)
+        self.ema = ema
+        D = encoder.out_dim
+        # Predictor: takes context avg-pool + target position embedding → target embedding
+        self.predictor = nn.Sequential(nn.Linear(D, D), nn.GELU(), nn.Linear(D, D))
+        self.context_ratio = context_ratio
+
+    @torch.no_grad()
+    def _update_target(self):
+        for tp, op in zip(self.target.parameters(), self.online.parameters()):
+            tp.mul_(self.ema).add_(op, alpha=1 - self.ema)
+
+    def compute_loss(self, x):
+        # x: [B, C, T] raw EEG window
+        self._update_target()
+        F = x.shape[-1]
+        split = int(F * self.context_ratio)
+        context_frames = self.online.frames(x[..., :split])   # [B, K, D]
+        with torch.no_grad():
+            target_frames = self.target.frames(x[..., split:]) # [B, F-K, D]
+        ctx = context_frames.mean(1)                            # [B, D] global context
+        preds = self.predictor(ctx).unsqueeze(1).expand_as(target_frames)
+        return F.mse_loss(preds, target_frames)
+```
+
+### Why this is more "basic" than everything else we ran
+
+| Property | Two-view VICReg | Two-view SIGReg | `EEGPredictiveJEPA` (ours) | Naive JEPA |
+|---|---|---|---|---|
+| Augmentation design | required | required | required | **none** |
+| Anti-collapse term | VICReg (3 coefficients) | SIGReg (2 coefficients) | hinge-std + cov | **none needed** |
+| Collapse mechanism | regularizer | regularizer | regularizer (failed) | masking asymmetry |
+| Prediction task | invariance to corruption | invariance to corruption | forward in time (but same span) | **future frames** |
+| Hyperparameters | 3 loss weights | 4 loss weights | 3 loss weights + EMA | **1 (EMA)** |
+| Failure mode | coeff bugs (Bug 1) | coeff bugs | collapse (Bug 3) | encoder ignores context |
+
+The naive JEPA has the fewest design choices and the fewest ways to silently misconfigure.
+Collapse is prevented architecturally (context and target never see the same frames), so the
+`std_loss ≈ 0` failure mode of our current predictive objective cannot occur. It is the honest
+"can a predictive objective even work here?" baseline before adding any of the complexity we
+already have.
+
+**Why we did not start here**: the EEGPredictiveJEPA was written to reuse the existing
+two-view data pipeline (which already produces (v1, v2) pairs). A masking-based JEPA
+requires a different data path (single-view, split by time index), which is a small but
+non-trivial change to `EEGConfig` and `make_loader`.
