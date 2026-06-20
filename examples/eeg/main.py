@@ -12,16 +12,18 @@ The downstream probe + metric is the third `# TODO`, in eval.py.
 
 Run:  python -m examples.eeg.main --fname examples/eeg/cfgs/train.yaml
 """
+import copy
 import os
 import sys
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from omegaconf import OmegaConf
 
-from eb_jepa.architectures import Projector
+from eb_jepa.architectures import Projector, RNNPredictor
 from eb_jepa.datasets.eeg.dataset import EEGConfig, make_loader
-from eb_jepa.losses import BCS, VICRegLoss
+from eb_jepa.losses import BCS, CovarianceLoss, HingeStdLoss, VICRegLoss
 from eb_jepa.nn_utils import init_module_weights
 from examples.eeg.encoders import BIOTEncoder, EEGPTEncoder, LaBraMEncoder
 
@@ -141,9 +143,87 @@ class EEGSSL(nn.Module):
         return loss, logs
 
 
+class EEGPredictiveJEPA(nn.Module):
+    """Predictive JEPA: the temporal-dynamics counterpart to the two-view objective.
+
+    Two-view VICReg/SIGReg asks "be invariant to corruption of the same instant."
+    This asks "predict a later instant's representation from an earlier one":
+      * `online_encoder.frames(v1)` -> [B, F, D] context sequence.
+      * `target_encoder` is an EMA (momentum) copy of the online encoder, never
+        trained by gradient — it embeds `v2` (the other augmented view) at each
+        frame, giving a stable, slowly-moving prediction target (BYOL/DINO-style;
+        avoids needing negative pairs to prevent collapse).
+      * an eb_jepa `RNNPredictor` is rolled forward one step at a time from the
+        first context frame, and each predicted frame is compared (MSE) against the
+        target encoder's frame at that position.
+      * anti-collapse (Hinge-std + covariance — the same primitives `VCLoss` and
+        `VICRegLoss` are built from) is applied directly to the online frames, since
+        there is no projector in this objective (the predictor already maps D->D).
+    """
+
+    def __init__(self, encoder, cfg):
+        super().__init__()
+        self.online_encoder = encoder
+        self.target_encoder = copy.deepcopy(encoder)
+        for p in self.target_encoder.parameters():
+            p.requires_grad_(False)
+        self.ema = cfg.get("ema", 0.996)
+        self.std_coeff = cfg.get("std_coeff", 1.0)
+        self.cov_coeff = cfg.get("cov_coeff", 1.0)
+        self.std_loss_fn = HingeStdLoss(std_margin=1.0)
+        self.cov_loss_fn = CovarianceLoss()
+        self.predictor = RNNPredictor(hidden_size=encoder.out_dim, action_dim=1,
+                                       num_layers=1, final_ln=nn.Identity())
+
+    def train(self, mode: bool = True):
+        super().train(mode)
+        self.target_encoder.eval()  # never let the parent's .train() flip this back
+        return self
+
+    @torch.no_grad()
+    def _update_target(self):
+        for tp, op in zip(self.target_encoder.parameters(), self.online_encoder.parameters()):
+            tp.mul_(self.ema).add_(op, alpha=1 - self.ema)
+
+    def compute_loss(self, batch):
+        self._update_target()  # EMA from the online weights as of the *previous* step
+        v1, v2 = batch
+        online_frames = self.online_encoder.frames(v1)         # [B, F, D]
+        with torch.no_grad():
+            target_frames = self.target_encoder.frames(v2)     # [B, F, D]
+
+        B, n_frames, D = online_frames.shape
+        assert n_frames >= 2, "need >=2 frames per window to predict forward"
+        state = online_frames[:, 0].reshape(B, D, 1, 1, 1)
+        action = online_frames.new_zeros(B, 1, 1)               # no actions -> dummy input
+
+        pred_losses = []
+        for t in range(1, n_frames):
+            state = self.predictor(state, action)
+            pred_losses.append(F.mse_loss(state.reshape(B, D), target_frames[:, t]))
+        pred_loss = torch.stack(pred_losses).mean()
+
+        flat = online_frames.reshape(B * n_frames, D)
+        std_loss = self.std_loss_fn(flat)
+        cov_loss = self.cov_loss_fn(flat)
+        loss = pred_loss + self.std_coeff * std_loss + self.cov_coeff * cov_loss
+
+        logs = {"pred_loss": float(pred_loss.item()), "std_loss": float(std_loss.item()),
+                "cov_loss": float(cov_loss.item())}
+        return loss, logs
+
+
 def build_ssl(encoder, cfg):
-    """Build the two-view SSL objective (VICReg or SIGReg/BCS, per cfg.ssl_loss)."""
-    return EEGSSL(encoder, cfg)
+    """Build the SSL objective selected by `cfg.objective`:
+      * "twoview" (default) -> EEGSSL (VICReg or SIGReg/BCS, per cfg.ssl_loss)
+      * "predictive"         -> EEGPredictiveJEPA (RNNPredictor + EMA target)
+    """
+    objective = cfg.get("objective", "twoview")
+    if objective == "twoview":
+        return EEGSSL(encoder, cfg)
+    if objective == "predictive":
+        return EEGPredictiveJEPA(encoder, cfg)
+    raise ValueError(f"unknown model.objective={objective!r}")
 
 
 # --------------------------------------------------------------------------- #

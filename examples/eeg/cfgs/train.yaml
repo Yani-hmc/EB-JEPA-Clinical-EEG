@@ -33,14 +33,16 @@ model:
   n_heads: 4
   mlp_ratio: 4.0
   dropout: 0.1
-  # SSL objective (EEGSSL)
-  ssl_loss: vicreg       # vicreg (default) | sigreg (LeJEPA/BCS anti-collapse)
-  projector_spec: 256-1024-1024
-  inv_coeff: 25.0        # vicreg only — invariance weight (Bardes et al. 2022)
-  std_coeff: 25.0        # vicreg only — variance weight
-  cov_coeff: 1.0         # vicreg only — covariance weight
+  # SSL objective
+  objective: twoview     # twoview (EEGSSL) | predictive (EEGPredictiveJEPA)
+  ssl_loss: vicreg       # vicreg (default) | sigreg (LeJEPA/BCS anti-collapse) -- twoview only
+  projector_spec: 256-1024-1024   # twoview only
+  inv_coeff: 25.0        # vicreg only — invariance weight (Bardes et al. 2022: 25)
+  std_coeff: 25.0        # vicreg twoview: 25.0 (paper); predictive: set to 1.0
+  cov_coeff: 1.0         # anti-collapse cov term
   num_slices: 256        # sigreg only
   lmbd: 10.0             # sigreg only
+  ema: 0.996             # predictive only -- target-encoder momentum
 optim:
   epochs: 20
   lr: 0.001

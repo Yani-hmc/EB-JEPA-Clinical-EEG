@@ -15,7 +15,7 @@ from examples.eeg.main import build_encoder, build_ssl
 ENCODER_TYPES = ["conv", "labram", "eegpt", "biot"]
 
 
-def _make_cfg(encoder_type="conv", ssl_loss="vicreg"):
+def _make_cfg(encoder_type="conv", ssl_loss="vicreg", objective="twoview"):
     return OmegaConf.create({
         "in_channels": 19,
         "out_dim": 64,
@@ -33,15 +33,17 @@ def _make_cfg(encoder_type="conv", ssl_loss="vicreg"):
         "mlp_ratio": 2.0,
         "dropout": 0.1,
         # ssl
+        "objective": objective,
         "ssl_loss": ssl_loss,
         "projector_spec": "64-128-128",
         "num_slices": 32,
+        "ema": 0.996,
     })
 
 
-def _one_step(encoder_type="conv", ssl_loss="vicreg"):
+def _one_step(encoder_type="conv", ssl_loss="vicreg", objective="twoview"):
     torch.manual_seed(0)
-    cfg = _make_cfg(encoder_type, ssl_loss)
+    cfg = _make_cfg(encoder_type, ssl_loss, objective)
     encoder = build_encoder(cfg)
     ssl = build_ssl(encoder, cfg)
 
@@ -65,6 +67,40 @@ def test_vicreg_one_step(encoder_type):
 def test_sigreg_one_step():
     loss, logs = _one_step("conv", "sigreg")
     assert {"bcs_loss", "invariance_loss"} <= logs.keys()
+
+
+@pytest.mark.parametrize("encoder_type", ENCODER_TYPES)
+def test_predictive_jepa_one_step(encoder_type):
+    loss, logs = _one_step(encoder_type, objective="predictive")
+    assert {"pred_loss", "std_loss", "cov_loss"} <= logs.keys()
+
+
+def test_predictive_jepa_target_is_ema_not_identity():
+    """Target encoder must diverge from a pure copy after an update (EMA is live,
+    not accidentally frozen to the init snapshot) but stay close (it's a SLOW average,
+    not equal to the online encoder either)."""
+    torch.manual_seed(0)
+    cfg = _make_cfg("conv", objective="predictive")
+    encoder = build_encoder(cfg)
+    ssl = build_ssl(encoder, cfg)
+
+    init_target = [p.clone() for p in ssl.target_encoder.parameters()]
+
+    for _ in range(3):
+        v1, v2 = torch.randn(8, 19, 2000), torch.randn(8, 19, 2000)
+        loss, _ = ssl.compute_loss((v1, v2))
+        loss.backward()
+        for p in ssl.online_encoder.parameters():
+            if p.grad is not None:
+                with torch.no_grad():
+                    p -= 0.01 * p.grad
+                p.grad = None
+
+    moved = [not torch.allclose(t0, t1) for t0, t1 in
+             zip(init_target, ssl.target_encoder.parameters())]
+    assert any(moved), "target encoder never moved -- EMA update isn't wired up"
+    for p in ssl.target_encoder.parameters():
+        assert not torch.isnan(p).any()
 
 
 @pytest.mark.parametrize("encoder_type", ENCODER_TYPES)

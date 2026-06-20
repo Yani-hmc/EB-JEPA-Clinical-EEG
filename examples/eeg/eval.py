@@ -16,7 +16,8 @@ import sys
 import numpy as np
 import torch
 from omegaconf import OmegaConf
-from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
+from sklearn.metrics import (accuracy_score, balanced_accuracy_score, f1_score,
+                              precision_score, recall_score, roc_auc_score)
 from sklearn.neural_network import MLPClassifier
 from sklearn.preprocessing import StandardScaler
 
@@ -59,6 +60,10 @@ def probe(Xtr, ytr, Xev, yev):
 
     No leakage: standardize features on TRAIN stats only, then fit an
     MLPClassifier and score on the eval embeddings (abnormal=1 = positive class).
+
+    Reports balanced_accuracy + AUROC alongside accuracy/f1/recall/precision —
+    TUAB is class-imbalanced, and BACC/AUROC are what published baselines (LaBraM
+    0.814 BACC, BIOT 0.796 BACC) report, so they're required for a fair comparison.
     """
     scaler = StandardScaler().fit(Xtr)
     Xtr_s, Xev_s = scaler.transform(Xtr), scaler.transform(Xev)
@@ -68,8 +73,11 @@ def probe(Xtr, ytr, Xev, yev):
     clf.fit(Xtr_s, ytr)
 
     pred = clf.predict(Xev_s)
+    prob = clf.predict_proba(Xev_s)[:, 1]
     return {
         "accuracy": accuracy_score(yev, pred),
+        "balanced_accuracy": balanced_accuracy_score(yev, pred),
+        "auroc": roc_auc_score(yev, prob),
         "f1": f1_score(yev, pred, pos_label=1, zero_division=0),
         "recall": recall_score(yev, pred, pos_label=1, zero_division=0),
         "precision": precision_score(yev, pred, pos_label=1, zero_division=0),
