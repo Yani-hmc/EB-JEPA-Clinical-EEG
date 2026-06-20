@@ -1,0 +1,45 @@
+\documentclass[10pt,a4paper]{article}
+\usepackage[margin=2cm]{geometry}
+\usepackage{booktabs,array,xcolor,graphicx}
+\usepackage[T1]{fontenc}
+\usepackage{microtype}
+\usepackage[colorlinks=true,linkcolor=blue!60!black]{hyperref}
+
+\title{\textbf{EB-JEPA --- Reference Table (V1)}}
+\author{EB-JEPA EEG track}
+\date{June 2026}
+
+\begin{document}
+\maketitle
+
+\noindent Our EB-JEPA runs on TUAB (v3.0.1, patient-disjoint, 276 eval recordings).
+\emph{per-rec} = per-recording (16-window mean-pool, the clinical metric); \emph{per-win} =
+per-window (the literature convention). $\pm$ = 3-seed standard deviation; other rows are
+single-seed. Companion to \texttt{explanation\_augmented\_corruption.tex} (which details the
+augmentation) and \texttt{PROVENANCE\_TABLE.md} (the literature baselines).
+
+\bigskip
+
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{@{}llcllcc@{}}
+\toprule
+\textbf{\#} & \textbf{Encoder} & \textbf{Params} & \textbf{Energy (SSL objective)} & \textbf{Eval}
+& \textbf{per-rec BAcc / AUROC} & \textbf{per-win BAcc / AUROC} \\
+\midrule
+baseline & Conv1D & 0.4M & VICReg --- \emph{base aug, no corruption} & frozen & 0.796 / 0.888 & 0.756 / -- \\
+1 & Conv1D & 0.4M & \textbf{VICReg + spectral 0.1} & frozen & 0.836 / 0.887 & 0.765 / -- \\
+2 & Conv1D & 0.4M & \textbf{SIGReg} & frozen & 0.825 / 0.913 & \textbf{0.775 / 0.856} \\
+3 & Conv1D & 0.4M & \textbf{VICReg} & frozen & \textbf{0.819\,$\pm$.004 / 0.900\,$\pm$.006} & 0.770 / 0.848 \\
+4 & Conv1D & 0.4M & VICReg & FT & 0.812\,$\pm$.004 / 0.908\,$\pm$.006 & -- \\
+5 & \textbf{Transformer} (multi-corpus) & 3.65M & VICReg & frozen & 0.798 / 0.872 & 0.738 / -- \\
+\bottomrule
+\end{tabular}}
+
+\bigskip
+
+\noindent\textbf{Fixed for every corruption run} (never swept): views $v_1,v_2$ made with Gaussian
+noise $\sigma=0.1$, scale-jitter $\pm20\%$, channel-drop $p=0.2$, plus exact EB-corruption ---
+20\% timepoints masked + 20\% $\pm6\sigma$ outliers ($\approx$40\%/view). The \textbf{baseline} is
+the no-corruption reference (legacy contiguous time-mask).
+
+\end{document}
