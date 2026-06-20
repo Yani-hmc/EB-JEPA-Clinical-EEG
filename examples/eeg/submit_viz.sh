@@ -15,7 +15,7 @@ SYS_PY=/cm/local/apps/python312/bin/python3.12
 PYTHON=/lustre/work/vivatech-slightlyunawarefc/yhammache/venvs/eb_jepa_aarch64/bin/python
 WHEELS=/lustre/work/vivatech-slightlyunawarefc/tcourtois/wheels
 EXTRA=/lustre/work/vivatech-slightlyunawarefc/tcourtois/venv_extra
-REPO=/lustre/work/vivatech-slightlyunawarefc/tvasnier/eb_jepa
+REPO=/lustre/work/vivatech-slightlyunawarefc/tcourtois/eb_jepa
 SCRIPT=$REPO/examples/eeg/viz_latents.py
 
 # ── installer umap-learn + matplotlib dans EXTRA (tcourtois-owned) ───────────
