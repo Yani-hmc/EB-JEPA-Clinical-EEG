@@ -435,10 +435,11 @@ augmentation combinations evaluated during the hackathon.
 \begin{table}[htbp]
 \centering
 \caption{%
-  Complete EB-JEPA results on TUAB v3.0.1 (276-recording eval split).
+  Complete EB-JEPA results on TUAB v3.0.1 (276-recording eval split) and TUEV v2.0.0 (6-class event transfer).
   ``Frozen'' = frozen encoder, MLP probe.
   ``FT'' = entire network fine-tuned during probe training.
-  WIN = per-window BACC; REC = per-recording BACC ($N{=}16$ windows, mean-pooled).
+  WIN = per-window BACC on TUAB; REC = per-recording BACC on TUAB ($N{=}16$ windows, mean-pooled).
+  BACC\textsubscript{TUEV} = 6-class macro balanced accuracy on TUEV event detection (frozen logistic probe, event-centred windows).
   ``collapsed'' = BACC $\leq$ random init floor.
   $^{a}$Accuracy (not BACC), early eval script.
   $^{\star}$AUROC under REC-WIN; WIN AUROC not recorded.
@@ -449,57 +450,59 @@ augmentation combinations evaluated during the hackathon.
 \small
 \setlength{\tabcolsep}{4pt}
 \resizebox{\textwidth}{!}{%
-\begin{tabular}{L{4.0cm}C{1.3cm}C{1.3cm}C{1.3cm}C{1.3cm}L{1.5cm}L{1.4cm}C{1.2cm}}
+\begin{tabular}{L{4.0cm}C{1.3cm}C{1.3cm}C{1.3cm}C{1.3cm}C{1.3cm}L{1.5cm}L{1.4cm}C{1.2cm}}
 \toprule
 \textbf{Model / Config} &
 \textbf{BACC\textsubscript{WIN}} &
 \textbf{BACC\textsubscript{REC}} &
 \textbf{AUROC\textsubscript{REC}} &
+\textbf{BACC\textsubscript{TUEV}} &
 \textbf{Score style} &
 \textbf{Probe} &
 \textbf{SSL loss} &
 \textbf{Data} \\
 \midrule
-\multicolumn{8}{l}{\textit{Conv1D encoder (0.4M parameters) -- spectral regularisation ablation}} \\
-Conv + VICReg$^{*}$ (base)          & 0.756 & 0.796 & 0.888 & WIN / REC-WIN & Frozen & VICReg$^{*}$ & SSL \\
-Conv + VICReg$^{*}$ + spec 0.05     & --    & 0.821 & 0.884 & REC-WIN & Frozen & VICReg$^{*}$ & SSL \\
-Conv + VICReg$^{*}$ + spec 0.1      & 0.765 & 0.836 & 0.887 & WIN / REC-WIN & Frozen & VICReg$^{*}$ & SSL \\
-Conv + VICReg$^{*}$ + spec 0.3      & --    & 0.789 & 0.877 & REC-WIN & Frozen & VICReg$^{*}$ & SSL \\
-Conv + VICReg$^{*}$ + spec 1.0      & --    & 0.785 & 0.874 & REC-WIN & Frozen & VICReg$^{*}$ & SSL \\
-Conv + VICReg$^{*}$ + fftc 0.05     & --    & 0.807 & 0.887 & REC-WIN & Frozen & VICReg$^{*}$ & SSL \\
-Conv + VICReg$^{*}$ + fftc 0.1      & --    & 0.798 & 0.881 & REC-WIN & Frozen & VICReg$^{*}$ & SSL \\
-Conv + VICReg$^{*}$ + fftc 0.3      & --    & 0.802 & 0.889 & REC-WIN & Frozen & VICReg$^{*}$ & SSL \\
+\multicolumn{9}{l}{\textit{Conv1D encoder (0.4M parameters) -- spectral regularisation ablation}} \\
+Conv + VICReg$^{*}$ (base)          & 0.756 & 0.796 & 0.888 & -- & WIN / REC-WIN & Frozen & VICReg$^{*}$ & SSL \\
+Conv + VICReg$^{*}$ + spec 0.05     & --    & 0.821 & 0.884 & -- & REC-WIN & Frozen & VICReg$^{*}$ & SSL \\
+Conv + VICReg$^{*}$ + spec 0.1      & 0.765 & 0.836 & 0.887 & -- & WIN / REC-WIN & Frozen & VICReg$^{*}$ & SSL \\
+Conv + VICReg$^{*}$ + spec 0.3      & --    & 0.789 & 0.877 & -- & REC-WIN & Frozen & VICReg$^{*}$ & SSL \\
+Conv + VICReg$^{*}$ + spec 1.0      & --    & 0.785 & 0.874 & -- & REC-WIN & Frozen & VICReg$^{*}$ & SSL \\
+Conv + VICReg$^{*}$ + fftc 0.05     & --    & 0.807 & 0.887 & -- & REC-WIN & Frozen & VICReg$^{*}$ & SSL \\
+Conv + VICReg$^{*}$ + fftc 0.1      & --    & 0.798 & 0.881 & -- & REC-WIN & Frozen & VICReg$^{*}$ & SSL \\
+Conv + VICReg$^{*}$ + fftc 0.3      & --    & 0.802 & 0.889 & -- & REC-WIN & Frozen & VICReg$^{*}$ & SSL \\
 \midrule
-\multicolumn{8}{l}{\textit{Conv1D encoder -- corruption augmentation ablation (3 seeds)}} \\
-Conv + VICReg$^{*}$ + corrupt (s0)  & 0.770 & 0.825 & 0.904 & WIN / REC-WIN & Frozen & VICReg$^{*}$ & SSL \\
-Conv + VICReg$^{*}$ + corrupt (s1)  & --    & 0.816 & 0.891 & REC-WIN & Frozen & VICReg$^{*}$ & SSL \\
-Conv + VICReg$^{*}$ + corrupt (s2)  & --    & 0.818 & 0.906 & REC-WIN & Frozen & VICReg$^{*}$ & SSL \\
-Conv + VICReg$^{*}$ + corrupt (big) & --    & 0.805 & 0.892 & REC-WIN & Frozen & VICReg$^{*}$ & SSL \\
-Conv + corrupt + spec 0.1           & --    & 0.802 & 0.899 & REC-WIN & Frozen & VICReg$^{*}$ & SSL \\
-Conv + SIGReg + corrupt             & 0.775 & 0.825 & 0.904 & WIN / REC-WIN & Frozen & SIGReg & SSL \\
+\multicolumn{9}{l}{\textit{Conv1D encoder -- corruption augmentation ablation (3 seeds)}} \\
+Conv + VICReg$^{*}$ + corrupt (s0)  & 0.770 & 0.825 & 0.904 & 0.382 & WIN / REC-WIN & Frozen & VICReg$^{*}$ & SSL \\
+Conv + VICReg$^{*}$ + corrupt (s1)  & --    & 0.816 & 0.891 & -- & REC-WIN & Frozen & VICReg$^{*}$ & SSL \\
+Conv + VICReg$^{*}$ + corrupt (s2)  & --    & 0.818 & 0.906 & -- & REC-WIN & Frozen & VICReg$^{*}$ & SSL \\
+Conv + VICReg$^{*}$ + corrupt (big) & --    & 0.805 & 0.892 & -- & REC-WIN & Frozen & VICReg$^{*}$ & SSL \\
+Conv + corrupt + spec 0.1           & 0.765 & 0.836 & 0.887 & 0.425 & WIN / REC-WIN & Frozen & VICReg$^{*}$ & SSL \\
+Conv + SIGReg + corrupt             & 0.775 & 0.825 & 0.904 & 0.363 & WIN / REC-WIN & Frozen & SIGReg & SSL \\
 \midrule
-\multicolumn{8}{l}{\textit{Conv1D encoder -- fine-tuning and multi-corpus}} \\
-Conv + VICReg$^{*}$ + corrupt (FT)  & --    & 0.812 & 0.908 & REC-WIN & Fine-tuned & VICReg$^{*}$ & SSL \\
-Conv + VICReg$^{*}$ + multicorpus   & --    & 0.812 & --    & REC-WIN & Frozen & VICReg$^{*}$ & SSL \\
-Conv + multicorpus (FT)             & --    & 0.812 & --    & REC-WIN & Fine-tuned & VICReg$^{*}$ & SSL \\
-EMA-JEPA on Conv (150ep)            & --    & 0.764 & --    & REC-WIN & Frozen & Pred-JEPA & SSL \\
+\multicolumn{9}{l}{\textit{Conv1D encoder -- fine-tuning and multi-corpus}} \\
+Conv + VICReg$^{*}$ + corrupt (FT)  & --    & 0.812 & 0.908 & -- & REC-WIN & Fine-tuned & VICReg$^{*}$ & SSL \\
+Conv + VICReg$^{*}$ + multicorpus   & --    & 0.812 & --    & 0.394 & REC-WIN & Frozen & VICReg$^{*}$ & SSL \\
+Conv + multicorpus (FT)             & --    & 0.812 & --    & -- & REC-WIN & Fine-tuned & VICReg$^{*}$ & SSL \\
+EMA-JEPA on Conv (150ep)            & --    & 0.764 & --    & -- & REC-WIN & Frozen & Pred-JEPA & SSL \\
 \midrule
-\multicolumn{8}{l}{\textit{LaBraM-style patch Transformer (1.2M parameters)}} \\
-LaBraM-style + VICReg$^{*}$         & 0.775$^{a}$ & -- & -- & WIN & Frozen & VICReg$^{*}$ & SSL \\
-LaBraM-style + SIGReg               & 0.725$^{a}$ & -- & -- & WIN & Frozen & SIGReg & SSL \\
+\multicolumn{9}{l}{\textit{LaBraM-style patch Transformer (1.2M parameters)}} \\
+LaBraM-style + VICReg$^{*}$         & 0.775$^{a}$ & -- & -- & -- & WIN & Frozen & VICReg$^{*}$ & SSL \\
+LaBraM-style + SIGReg               & 0.725$^{a}$ & -- & -- & -- & WIN & Frozen & SIGReg & SSL \\
 \midrule
-\multicolumn{8}{l}{\textit{BIOT-style FFT Transformer (1.2M parameters)}} \\
-BIOT-style + VICReg$^{*}$           & 0.775$^{a}$ & -- & -- & WIN & Frozen & VICReg$^{*}$ & SSL \\
-BIOT-style + SIGReg                 & 0.783$^{a}$ & -- & -- & WIN & Frozen & SIGReg & SSL \\
+\multicolumn{9}{l}{\textit{BIOT-style FFT Transformer (1.2M parameters)}} \\
+BIOT-style + VICReg$^{*}$           & 0.775$^{a}$ & -- & -- & -- & WIN & Frozen & VICReg$^{*}$ & SSL \\
+BIOT-style + SIGReg                 & 0.783$^{a}$ & -- & -- & -- & WIN & Frozen & SIGReg & SSL \\
 \midrule
-\multicolumn{8}{l}{\textit{EEGPT-style channel-pool Transformer (0.8M parameters)}} \\
-EEGPT-style + VICReg$^{*}$          & collapsed & -- & -- & WIN & Frozen & VICReg$^{*}$ & SSL \\
-EEGPT-style + SIGReg                & collapsed & -- & -- & WIN & Frozen & SIGReg & SSL \\
-EEGPT-style + VICReg (fixed, ep.11) & pending & -- & -- & -- & -- & VICReg & SSL \\
+\multicolumn{9}{l}{\textit{EEGPT-style channel-pool Transformer (0.8M parameters)}} \\
+EEGPT-style + VICReg$^{*}$          & collapsed & -- & -- & -- & WIN & Frozen & VICReg$^{*}$ & SSL \\
+EEGPT-style + SIGReg                & collapsed & -- & -- & -- & WIN & Frozen & SIGReg & SSL \\
+EEGPT-style + VICReg (fixed, ep.11) & pending & -- & -- & -- & -- & -- & VICReg & SSL \\
 \bottomrule
-\multicolumn{8}{l}{%
+\multicolumn{9}{l}{%
   ``Data'' column: SSL = TUAB SSL training split (2717 recordings, no labels).
-  Multicorpus = TUAB+TUEV+TUSZ+TUEP (4$\times$ data).}
+  Multicorpus = TUAB+TUEV+TUSZ+TUEP (4$\times$ data).
+  BACC\textsubscript{TUEV} = 6-class macro BACC on TUEV event detection (frozen probe).}
 \end{tabular}}
 \end{table}
 
