@@ -1,0 +1,61 @@
+\documentclass[10pt,a4paper]{article}
+\usepackage[margin=2cm]{geometry}
+\usepackage{booktabs,array,xcolor,graphicx}
+\usepackage[T1]{fontenc}
+\usepackage[expansion=false]{microtype}
+\usepackage[colorlinks=true,linkcolor=blue!60!black]{hyperref}
+
+\definecolor{good}{RGB}{39,174,96}
+\definecolor{bad}{RGB}{192,57,43}
+\newcommand{\good}[1]{\textcolor{good}{#1}}
+\newcommand{\bad}[1]{\textcolor{bad}{#1}}
+
+\title{\textbf{EB-JEPA --- Robustness, Hyperparameter Tuning \& Ablation (V1)}}
+\author{EB-JEPA EEG track}
+\date{June 2026}
+
+\begin{document}
+\maketitle
+
+\noindent Five experiments distilled from a 5-stage optimization of our EB-JEPA on TUAB
+(v3.0.1, patient-disjoint, 276 eval recordings; frozen encoder $\to$ logistic-regression probe).
+Row~1 is the \textbf{tuned model} --- the winner of the campaign (capacity $\to$ augmentation
+$\to$ schedule $\to$ loss coefficients $\to$ architecture/data); rows~2--5 each perturb it along
+one axis. \emph{per-rec} = per-recording (16-window mean-pool, the clinical metric); \emph{per-win}
+= per-window (the literature convention). Single-seed. Companion to
+\texttt{reference\_table\_JEPA\_V1} (the full runs table).
+
+\bigskip
+
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{@{}llp{6.6cm}ccc@{}}
+\toprule
+\textbf{\#} & \textbf{Test} & \textbf{Configuration (vs.\ tuned model)} & \textbf{Params}
+& \textbf{per-rec BAcc / AUROC} & \textbf{per-win BAcc / AUROC} \\
+\midrule
+1 & \textbf{Tuned model} & Conv $\cdot$ VICReg + spectral 0.1 + corruption $\cdot$ inv\,=\,1 $\cdot$ no scale-jitter $\cdot$ 20 ep & 1.35M & \textbf{0.824 / 0.896} & 0.755 / 0.839 \\
+2 & \textbf{Robustness} & pretrain on \textbf{25\%} of recordings (4$\times$ less data) & 1.35M & \good{0.816} / 0.895 & 0.762 / 0.842 \\
+3 & \textbf{HP tuning} & invariance weight \textbf{inv\,=\,25} (VICReg default) instead of 1 & 1.35M & \bad{0.804} / 0.884 & 0.730 / 0.813 \\
+4 & \textbf{Ablation} & remove the \textbf{corruption mask} (outliers only) & 1.35M & \bad{0.796} / 0.891 & 0.762 / 0.841 \\
+5 & \textbf{Ablation} & \textbf{Transformer} encoder at equal capacity & 1.29M & \bad{0.725} / 0.804 & 0.652 / 0.708 \\
+\bottomrule
+\end{tabular}}
+
+\bigskip
+
+\noindent\textbf{Legend / fixed setup.} Every row uses the tuned model's recipe except the stated
+change: a 0.4M-class 1-D conv scaled to \textbf{1.35M} (\texttt{hidden=96, depth=4}); two-view
+VICReg energy + a DDSP multi-scale-spectral auxiliary term (weight 0.1); exact EB-corruption views
+$v_1,v_2$ (Gaussian noise $\sigma=0.1$, channel-drop $p=0.2$, 20\% timepoints masked + 20\%
+$\pm6\sigma$ outliers); invariance weight 1; 20 epochs; frozen-encoder logreg probe.
+
+\smallskip
+\noindent\textbf{What each row shows.}
+\begin{itemize}\itemsep1pt
+\item[\textbf{2}] \textbf{Robustness to data:} cutting pretraining data 4$\times$ costs only $0.8$\,pp ($0.824\!\to\!0.816$) --- the encoder is \emph{not} data-starved; it saturates early.
+\item[\textbf{3}] \textbf{Hyperparameter tuning:} VICReg's vision-default invariance weight (25) is \textbf{2\,pp worse} than our tuned \texttt{inv=1}. EEG SSL prefers \emph{weak} view-invariance (full swept curve: $1>5>10>25$).
+\item[\textbf{4}] \textbf{Augmentation ablation:} the corruption \textbf{mask is the single biggest lever} ($-2.8$\,pp when removed); for contrast, scale-jitter and the spectral term are \emph{dead weight} ($\approx0$).
+\item[\textbf{5}] \textbf{Architecture ablation:} a from-scratch Transformer at \emph{equal} $\sim$1.3M params is \textbf{10\,pp worse} --- at our scale/epoch budget the conv wins decisively; the SOTA gap is pretraining corpus + schedule, not architecture.
+\end{itemize}
+
+\end{document}
