@@ -1,4 +1,4 @@
-# TUEV — TUH EEG Events Corpus (v2.0.0)
+# TUEV - TUH EEG Events Corpus (v2.0.0)
 
 **6-class event classification**: per labeled second, which of {SPSW, GPED,
 PLED, EYEM, ARTF, BCKG} is it?
@@ -44,13 +44,13 @@ Vendored copy: [`process.py`](process.py) (from
 
 ## How EB-JEPA uses TUEV
 
-**Transfer probe only — we never train EB-JEPA on TUEV.** The recipe in
+**Transfer probe only - we never train EB-JEPA on TUEV.** The recipe in
 [`../../TUEV_experiments/`](../../TUEV_experiments/) is:
 
 1. Pretrain a Conv1D EB-JEPA encoder on **TUAB** (the SSL energy is whatever
-   the row specifies — VICReg, SIGReg, +spectral, +corrupt).
+   the row specifies - VICReg, SIGReg, +spectral, +corrupt).
 2. Freeze the encoder.
-3. Run [`tuev_probe.py`](../../TUEV_experiments/tuev_probe.py) — a 6-class
+3. Run [`tuev_probe.py`](../../TUEV_experiments/tuev_probe.py) - a 6-class
    logistic regression on event-centered windows from `process.py`'s output.
 
 This is the [JEPA "one representation, many tasks"](https://arxiv.org/abs/2403.00504)

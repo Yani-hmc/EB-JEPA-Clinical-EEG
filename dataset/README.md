@@ -1,4 +1,4 @@
-# Datasets — TUAB + TUEV (TUH EEG Corpus)
+# Datasets - TUAB + TUEV (TUH EEG Corpus)
 
 Both datasets come from the **Temple University Hospital EEG Corpus (TUH-EEG)**,
 a publicly available collection of clinical scalp-EEG recordings. They share
@@ -30,5 +30,5 @@ For each dataset, the corresponding `supervised_baselines_provenance.md` lists
 **every literature baseline we cite**, with exact paper title + GitHub URL +
 "did we re-run it on OUR pkls or cite paper?":
 
-- [`TUAB/supervised_baselines_provenance.md`](TUAB/supervised_baselines_provenance.md) — 10 baselines on TUAB
-- [`TUEV/supervised_baselines_provenance.md`](TUEV/supervised_baselines_provenance.md) — 10 baselines on TUEV (7 re-run, 3 cited)
+- [`TUAB/supervised_baselines_provenance.md`](TUAB/supervised_baselines_provenance.md) - 10 baselines on TUAB
+- [`TUEV/supervised_baselines_provenance.md`](TUEV/supervised_baselines_provenance.md) - 10 baselines on TUEV (7 re-run, 3 cited)

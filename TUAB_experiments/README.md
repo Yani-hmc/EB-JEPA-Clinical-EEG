@@ -1,4 +1,4 @@
-# TUAB Experiments — EB-JEPA reference table reproduction
+# TUAB Experiments - EB-JEPA reference table reproduction
 
 This directory contains **one shell script per row** of our TUAB EB-JEPA
 [`reference_table_JEPA_V1.md`](reference_table_JEPA_V1.md). Each script
@@ -59,13 +59,13 @@ For SLURM on DALIA, wrap the script in a sbatch with:
 experiments matching
 [`robustness/reference_table_robustness_V1.md`](robustness/reference_table_robustness_V1.md).
 
-## Caveats — rows that don't fully reproduce from this branch alone
+## Caveats - rows that don't fully reproduce from this branch alone
 
 - **Row 4 (FT)** needs a pretrained row-3 checkpoint as `--init`. Run
   `run_row3_vicreg_3seed.sh` first to produce the three seed checkpoints.
 - **Row 5 (multi-corpus)** needs a TUAB+TUEV+TUSZ+TUEP union preprocessing root.
   We point `MULTI_ROOT` at our DALIA path; adapt for your environment.
 - **Row 6 (stylized facts)** is reproduced **without** the four path-statistics
-  blocks (Δz/Δz²/ACF/sACF) — those need a Phase-6 patch on top of the loss
+  blocks (Δz/Δz²/ACF/sACF) - those need a Phase-6 patch on top of the loss
   function (see commit `fc5041e` for the canonical version). The script
   reproduces the closest configuration (row 1 with 3 seeds).

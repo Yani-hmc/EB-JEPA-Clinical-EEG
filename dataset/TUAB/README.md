@@ -1,10 +1,10 @@
-# TUAB — TUH Abnormal EEG Corpus (v3.0.1)
+# TUAB - TUH Abnormal EEG Corpus (v3.0.1)
 
 **Binary classification**: is the recording **normal** or **abnormal**?
 
 ## Source
 
-[Temple University Hospital EEG Corpus](https://isip.piconepress.com/projects/tuh_eeg/) — register
+[Temple University Hospital EEG Corpus](https://isip.piconepress.com/projects/tuh_eeg/) - register
 to obtain the v3.0.1 dump. We use the canonical split:
 
 | split | recordings | patients (disjoint!) |
@@ -12,7 +12,7 @@ to obtain the v3.0.1 dump. We use the canonical split:
 | train | 2,717 | 2,717 |
 | eval  | 276 | 276 |
 
-`train` and `eval` share **no patient** — this is what makes the eval BAcc a
+`train` and `eval` share **no patient** - this is what makes the eval BAcc a
 real generalization number. Every recording has a single label
 (`normal` / `abnormal`); the prevalence in eval is 43% abnormal / 57% normal.
 
@@ -29,7 +29,7 @@ real generalization number. Every recording has a single label
 
 All of this lives in [`eb_jepa/datasets/eeg/dataset.py`](../../eb_jepa/datasets/eeg/dataset.py)
 (class `EEGDataset` + `make_loader`). There is **no separate preprocessing
-script** — the EDFs are read directly via `pyedflib`.
+script** - the EDFs are read directly via `pyedflib`.
 
 Set the data root to your local TUAB tree (e.g. on DALIA:
 `/lustre/work/pdl17890/udl806719/datasets/Neuro/TUAB-TUEV/TUAB_PREPROCESSED`).
@@ -53,9 +53,9 @@ rows turn on `aug_exact_corruption=true`.
 
 ## Scoring conventions
 
-- **per-recording BAcc / AUROC** — 16 windows mean-pooled to one prediction per
+- **per-recording BAcc / AUROC** - 16 windows mean-pooled to one prediction per
   recording. This is the **clinical metric** (what an OEM would report).
-- **per-window BAcc / AUROC** — predict each 10s window independently. This is
+- **per-window BAcc / AUROC** - predict each 10s window independently. This is
   the **TUAB-literature convention** (BIOT, LaBraM, SPaRCNet tables).
 
 Our [`reference_table_JEPA_V1.md`](../../TUAB_experiments/reference_table_JEPA_V1.md)
@@ -65,5 +65,5 @@ reports BOTH; the headline number in talks is per-recording.
 
 → See [`supervised_baselines_provenance.md`](supervised_baselines_provenance.md).
 10 rows: LaBraM-{Base,Large,Huge}, BIOT vanilla, BIOT pretrained, SPaRCNet,
-ContraWR, CNN-T, FFCL, ST-T, EEGNet, ShallowConvNet — each with paper title,
+ContraWR, CNN-T, FFCL, ST-T, EEGNet, ShallowConvNet - each with paper title,
 GitHub URL, pretrained-weights provenance, and our-pipeline scores.

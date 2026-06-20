@@ -1,9 +1,9 @@
-# TUEV Experiments — EB-JEPA reference table reproduction
+# TUEV Experiments - EB-JEPA reference table reproduction
 
 This directory contains **one shell script per row** of our TUEV EB-JEPA
 [`reference_table_JEPA_TUEV_V1.md`](reference_table_JEPA_TUEV_V1.md).
 
-Every row is a **transfer probe** — a Conv1D EB-JEPA encoder is **pretrained
+Every row is a **transfer probe** - a Conv1D EB-JEPA encoder is **pretrained
 on TUAB** (no TUEV labels seen in SSL), then **frozen** and probed on TUEV's
 6 event classes with a class-balanced logistic regression.
 
@@ -37,7 +37,7 @@ python TUEV_experiments/tuev_probe.py --ckpt "$CKPT_DIR/latest.pth.tar"
 loads BIOT-`process.py`-preprocessed TUEV pkls (one event-window per file),
 extracts frozen features, and fits a class-balanced multinomial logistic
 regression on the 6 event classes (BCKG subsampled to balance the dataset
-— else 95% is BCKG and the task is trivial). Reports the standard literature
+- else 95% is BCKG and the task is trivial). Reports the standard literature
 metrics: **balanced_accuracy / cohen_kappa / weighted_f1** + a few extras.
 
 ### CLI
@@ -56,7 +56,7 @@ For the **random-encoder floor** (the 0.337 reference), pass `--random`.
 ## Headline reading
 
 **Row 1 (0.425 BAcc) beats our supervised CNN-Transformer (0.410) and
-ST-Transformer (0.339) without ever seeing a TUEV label** — the JEPA
+ST-Transformer (0.339) without ever seeing a TUEV label** - the JEPA
 "one representation, many tasks" result.
 
 → For the literature/supervised numbers, see
