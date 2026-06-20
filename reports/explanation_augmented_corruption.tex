@@ -1,0 +1,92 @@
+\documentclass[10pt,a4paper]{article}
+\usepackage[margin=2cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{microtype}
+\usepackage[T1]{fontenc}
+
+\hypersetup{colorlinks=true,linkcolor=blue!60!black}
+
+\title{\textbf{The Four-Step Augmentation Pipeline and the\\Exact-Corruption Variant}}
+\author{EB-JEPA EEG track}
+\date{June 2026}
+
+\begin{document}
+\maketitle
+
+\section{Where this sits in the pipeline}
+\texttt{EEGDataset.\_\_getitem\_\_} (mode \texttt{"ssl"}) reads \emph{one} random
+10\,s window $x \in \mathbb{R}^{19 \times 2000}$ (19 channels, 200\,Hz) from a random
+recording, z-scores it per channel, then calls \texttt{\_augment(x)} \emph{twice
+independently} to produce the two views consumed by the SSL objective:
+\[
+  v_1 = \texttt{\_augment}(x), \qquad v_2 = \texttt{\_augment}(x).
+\]
+Neither $v_1$ nor $v_2$ is the clean $x$ — both are corrupted, each with its own draw
+of random numbers. The encoder never sees $x$ itself; it only has to learn that $v_1$
+and $v_2$ describe ``the same thing'' despite their independent corruptions.
+
+\section{The four steps inside \texttt{\_augment}}
+Applied in this fixed order, each gated by its own coefficient:
+
+\begin{enumerate}
+  \item \textbf{Amplitude scale jitter.} Per channel $c$, draw
+  $s_c \sim \mathcal{U}(1-j,\,1+j)$ with $j = \texttt{aug\_scale\_jitter} = 0.2$, then
+  $x_c \leftarrow s_c \cdot x_c$.
+
+  \item \textbf{Additive Gaussian noise.}
+  $x \leftarrow x + \varepsilon,\quad \varepsilon \sim \mathcal{N}(0, \sigma^2)$,
+  $\sigma = \texttt{aug\_noise\_std} = 0.1$ (z-scored units).
+
+  \item \textbf{Channel dropout.} Each of the 19 channels is independently zeroed
+  with probability $p = \texttt{aug\_chan\_drop\_p} = 0.2$:
+  $x_c \leftarrow x_c \cdot \mathbb{1}[u_c > p],\ u_c \sim \mathcal{U}(0,1)$.
+
+  \item \textbf{Time masking — legacy vs.\ exact corruption.} Two mutually
+  exclusive schemes, selected by \texttt{aug\_exact\_corruption}:
+
+  \begin{description}
+    \item[Legacy (\texttt{aug\_exact\_corruption=False}, default).] Zero out
+    \emph{one} random contiguous span of length
+    $\ell \sim \mathcal{U}(0,\, f)\cdot T$, $f=\texttt{aug\_time\_mask\_frac}=0.2$,
+    at a random start position $s \sim \mathcal{U}(0,\, T-\ell)$. At most 20\% of
+    the window is touched, in a single block, identical across channels.
+
+    \item[Exact corruption (\texttt{aug\_exact\_corruption=True}).] Per channel,
+    independently: pick a random permutation of the $T=2000$ time indices, then
+    \begin{itemize}
+      \item zero-mask a fixed fraction $m=\texttt{aug\_mask\_frac}=0.2$ of indices,
+      \item replace a \emph{disjoint} fraction $o=\texttt{aug\_outlier\_frac}=0.2$
+      of indices with outlier spikes $\pm k$ (in z-scored $\sigma$ units,
+      $k=\texttt{aug\_outlier\_scale}=6.0$, random sign per spike).
+    \end{itemize}
+    Exactly $m+o = 40\%$ of each channel's samples are corrupted, scattered
+    (not contiguous), and independently chosen per channel.
+  \end{description}
+\end{enumerate}
+
+\section{What changes between the two schemes}
+Steps 1--3 (jitter, noise, channel dropout) are identical in both schemes — only
+step 4 differs:
+
+\begin{center}
+\begin{tabular}{@{}lll@{}}
+\toprule
+& \textbf{Legacy} & \textbf{Exact corruption} \\
+\midrule
+Corrupted fraction & up to 20\%, one block & exactly 40\% \\
+Spatial pattern & contiguous span & scattered indices \\
+Per-channel independence & same span, all channels & independent per channel \\
+Corruption type & zero only & zero \emph{and} $\pm6\sigma$ outliers \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Both schemes act on the \emph{same} underlying $x$ at the \emph{same} point in the
+pipeline (after jitter/noise/dropout, before returning $v_1$/$v_2$) — exact
+corruption is not a new data source or an enlarged dataset, it is a stronger,
+differently-shaped corruption applied to the one random window already drawn.
+
+\end{document}
