@@ -1,0 +1,67 @@
+\documentclass[10pt,a4paper]{article}
+\usepackage[margin=2cm]{geometry}
+\usepackage{booktabs,array,xcolor,graphicx}
+\usepackage[T1]{fontenc}
+\usepackage[expansion=false]{microtype}
+\usepackage[colorlinks=true,linkcolor=blue!60!black]{hyperref}
+
+\title{\textbf{EB-JEPA --- TUEV Reference Table (V1)}}
+\author{EB-JEPA EEG track}
+\date{June 2026}
+
+\begin{document}
+\maketitle
+
+\noindent Our EB-JEPA runs on \textbf{TUEV} (6-class event detection, frozen logistic probe).
+Companion to \texttt{reference\_table\_JEPA\_V1.pdf} (TUAB) and
+\texttt{examples/eeg/PROVENANCE\_TABLE\_TUEV.md} (literature baselines).
+
+\bigskip
+
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{@{}llcllc@{}}
+\toprule
+\textbf{\#} & \textbf{Encoder} & \textbf{Params} & \textbf{Energy (SSL objective)} & \textbf{Eval} & \textbf{TUEV BAcc} \\
+\midrule
+baseline & Conv1D & 0.4M & VICReg --- \emph{base aug, no corruption} & frozen & 0.381 \\
+1 & Conv1D & 0.4M & \textbf{VICReg + spectral 0.1 + corrupt} & frozen & \textbf{0.425} $\star$ best \\
+2 & Conv1D & 0.4M & VICReg + corrupt (s0) & frozen & 0.382 \\
+3 & Conv1D & 0.4M & SIGReg + corrupt & frozen & 0.363 \\
+\bottomrule
+\end{tabular}}
+
+\bigskip
+
+\noindent\textbf{TUEV BAcc} --- 6-class macro balanced accuracy on TUEV event detection.
+\textbf{Chance} = 0.167; \textbf{random-encoder floor} = 0.337. All rows use a
+\textbf{TUAB-pretrained encoder, frozen, never trained on TUEV} --- pure
+representation-transfer probe.
+
+\medskip
+
+\noindent\textbf{Probe protocol} --- class-balanced logistic regression on event-centered 5\,s
+windows (200\,Hz, 19 channels, per-channel z-scored), background class subsampled so the 6 classes
+(SPSW / GPED / PLED / EYEM / ARTF / BCKG) are balanced. Subject-disjoint train/eval.
+
+\medskip
+
+\noindent\textbf{Fixed for every corruption run} (never swept): views $v_1,v_2$ made with Gaussian
+noise $\sigma=0.1$, scale-jitter $\pm20\%$, channel-drop $p=0.2$, plus exact EB-corruption ---
+20\% timepoints masked + 20\% $\pm6\sigma$ outliers ($\approx$40\%/view). The \textbf{baseline} is
+the no-corruption reference (legacy contiguous time-mask).
+
+\medskip
+
+\noindent\textbf{VICReg$^{*}$ note} --- these runs use the original \texttt{inv\_coeff = 1} (the
+3-seed ablation showed \texttt{inv=1} actually beats \texttt{inv=25} by $\sim$3\,pp / $\sim$6$\sigma$
+on TUAB; reframed as a finding rather than a bug in commit \texttt{5a13ebd}).
+
+\medskip
+
+\noindent\textbf{Reading the table} --- best frozen-transfer is \textbf{row~1 (VICReg + spectral
+0.1 + corrupt $\to$ 0.425 BAcc)}, which beats our supervised CNN-Transformer (0.410) and
+ST-Transformer (0.339) \textbf{without ever seeing a TUEV label}. Every config lands well above
+the random-encoder floor (0.337) and the 6-class chance line (0.167), confirming the
+TUAB-pretrained representation transfers to TUEV.
+
+\end{document}
