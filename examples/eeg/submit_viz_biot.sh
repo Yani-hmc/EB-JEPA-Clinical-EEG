@@ -18,20 +18,14 @@ SCRIPT=$REPO/examples/eeg/viz_biot.py
 CKPT=/lustre/work/vivatech-slightlyunawarefc/tvasnier/external/BIOT/pretrained-models/EEG-SHHS+PREST-18-channels.ckpt
 OUT=/lustre/work/vivatech-slightlyunawarefc/tcourtois/viz_out/biot
 
-# ── install deps offline ──────────────────────────────────────────────────────
-echo "=== install deps ==="
-mkdir -p $EXTRA
-# umap + matplotlib (déjà installés au run précédent, idempotent)
-$SYS_PY -m pip install --quiet --no-index --find-links=$WHEELS \
-    umap-learn matplotlib
-# linear-attention-transformer et ses deps pure-Python (--no-deps pour éviter torch)
-$SYS_PY -m pip install --quiet --no-index --find-links=$WHEELS --no-deps \
-    linear-attention-transformer
-$SYS_PY -m pip install --quiet --no-index --find-links=$WHEELS --no-deps \
-    axial-positional-embedding einops linformer local-attention product-key-memory
-
+# ── vérifier que tout est là (préinstallé manuellement via unzip) ─────────────
 echo "=== check deps ==="
-PYTHONPATH=$EXTRA $PYTHON -c "import sklearn, umap, matplotlib, linear_attention_transformer; print('all ok')"
+PYTHONPATH=$EXTRA $PYTHON -c "
+import sklearn, umap, matplotlib
+import linear_attention_transformer
+import axial_positional_embedding, linformer, local_attention, product_key_memory
+print('all deps ok')
+"
 
 echo ""
 echo "=== viz_biot ==="
