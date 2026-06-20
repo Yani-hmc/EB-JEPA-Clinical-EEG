@@ -352,10 +352,47 @@ A critical distinction exists between the \emph{SSL split} (used during pre-trai
 and the \emph{probe split} (used to train and evaluate the downstream classifier).
 
 \paragraph{Recording configuration.}
-19-channel scalp EEG in the international 10-20 system, sampled at 256\,Hz and
-resampled to 200\,Hz.  Recordings span 10--120 minutes (clinical monitoring sessions).
+19-channel scalp EEG in the international 10-20 system (FP1, FP2, F3, F4, C3, C4,
+P3, P4, O1, O2, F7, F8, T3, T4, T5, T6, FZ, CZ, PZ), in a fixed channel order
+across every file.  Recordings span 10--120 minutes (clinical monitoring sessions).
 The binary label (\emph{normal} vs.\ \emph{abnormal}) is assigned by a board-certified
 neurologist to the entire recording.
+
+\paragraph{Offline preprocessing (applied once, provided by the dataset).}
+The TUAB\_PREPROCESSED folder contains signals already processed by the dataset
+providers in the following order:
+\begin{enumerate}[noitemsep]
+  \item \textbf{Channel selection.}  19 scalp electrodes in the 10-20 system,
+    fixed order across all files.  Raw TUAB recordings vary in the number of
+    channels; only the 19 standard channels are retained.
+  \item \textbf{Resampling to 200\,Hz.}  Raw recording rates vary (250, 256,
+    512\,Hz depending on the acquisition system).  All signals are resampled to a
+    common 200\,Hz grid.  At 200\,Hz a 10-second window contains exactly 2000
+    samples per channel, which divides cleanly for strided convolutions and patch
+    encoders.
+  \item \textbf{60\,Hz notch filter.}  TUAB is a US dataset; US mains frequency
+    is 60\,Hz (not 50\,Hz as in Europe).  A narrow notch removes this line-noise
+    artefact before any learning.
+  \item \textbf{0.1--75\,Hz bandpass.}  The standard clinical EEG band, covering
+    delta (0.5--4\,Hz), theta (4--8\,Hz), alpha (8--13\,Hz), beta (13--30\,Hz),
+    and low gamma (30--70\,Hz) while discarding DC drift ($<$0.1\,Hz) and
+    high-frequency noise ($>$75\,Hz, comfortably below the 100\,Hz Nyquist at
+    200\,Hz).  No normalization is applied at this stage; amplitudes remain in
+    native \textmu{}V.
+\end{enumerate}
+
+\paragraph{Online preprocessing (applied at load time, per window).}
+After the offline pipeline, each 10-second window loaded during training or
+evaluation is \textbf{z-scored per channel}:
+\[
+  \hat{x}_c = \frac{x_c - \mu_c}{\sigma_c + 10^{-6}},
+\]
+where $\mu_c$ and $\sigma_c$ are the mean and standard deviation of channel $c$
+computed \emph{within the window only} (no statistics leak across windows or
+patients).  This removes per-channel amplitude offsets caused by electrode
+impedance variability and brings all channels to a common scale regardless of the
+underlying µV amplitude.  No global normalization (across recordings or the full
+dataset) is used.
 
 \paragraph{Patient-disjoint splits.}
 TUAB provides an official patient-disjoint train/eval split:
