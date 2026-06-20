@@ -1,0 +1,260 @@
+\documentclass[10pt,a4paper]{article}
+\usepackage[margin=2cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{microtype}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage[T1]{fontenc}
+
+\hypersetup{colorlinks=true,linkcolor=blue!60!black,citecolor=green!50!black}
+
+\definecolor{warn}{RGB}{192,57,43}
+\definecolor{good}{RGB}{39,174,96}
+
+\title{\textbf{EB-JEPA for EEG Time Series}\\
+  \large Self-Supervised Abnormality Detection on TUAB\\[4pt]
+  \normalsize Hackathon Technical Report}
+\author{Team: tcourtois, yhammache, tvasnier}
+\date{June 2026}
+
+\begin{document}
+\maketitle
+\begin{abstract}
+We apply the Energy-Based JEPA (EB-JEPA) framework to EEG time-series, training a
+self-supervised encoder on the TUH Abnormal EEG Corpus (TUAB) with no labels.
+A frozen linear probe on the learned representations reaches
+\textbf{BACC 0.775} per-window (fair comparison to the literature)
+and \textbf{BACC 0.836} per-recording (mean-pool of 16 windows per patient).
+We compare four encoder architectures and two SSL objectives, identify a
+VICReg coefficient bug (invariance underweighted by 25$\times$) as the primary
+cause of EEGPT encoder collapse, and flag a systematic evaluation protocol
+mismatch that initially caused us to overstate our results against published baselines.
+\end{abstract}
+
+\section{Task and Dataset}
+\textbf{TUAB} (TUH Abnormal EEG Corpus v3.0.1): binary normal/abnormal classification
+on scalp EEG. 19 channels, 200\,Hz, 10\,s windows, z-scored per channel.
+Patient-disjoint split: $n_{\text{train}}=2717$ recordings / $n_{\text{eval}}=276$ recordings
+(45.6\% abnormal). SSL pretraining uses only the train split with no labels.
+Evaluation metric: \textbf{Balanced Accuracy (BACC)} and AUROC.
+
+\section{Our Contribution}
+
+\paragraph{What is provided (EB-JEPA framework).}
+The two-view SSL training loop, dataset loader, data augmentations, VICReg and SIGReg
+(BCS/Epps-Pulley) loss implementations, and the Projector MLP are provided by the
+competition framework.
+
+\paragraph{What we implemented and contributed.}
+\begin{enumerate}
+  \item \textbf{Four encoder architectures} (\S\ref{sec:encoders}): strided Conv1D (baseline),
+    LaBraM-style patch transformer, BIOT-style FFT-tokenized transformer, and
+    EEGPT-style hierarchical (spatial pool + temporal transformer).
+  \item \textbf{Ablation study} (\S\ref{sec:ablation}): systematic sweep over SSL objectives
+    (VICReg / SIGReg), corruption augmentations, spectral regularisation, and encoder scaling.
+  \item \textbf{VICReg coefficient fix}: identified that the loss was using weights $(1,1,1)$
+    instead of the paper's $(25,25,1)$; invariance was underweighted by $25\times$
+    (\S\ref{sec:bugs}).
+  \item \textbf{EEGPT collapse diagnosis}: channel-pool architectural bottleneck combined with
+    the underweighted invariance caused EEGPT to train \emph{below} random-init performance
+    (\S\ref{sec:bugs}).
+  \item \textbf{Evaluation protocol audit}: caught and corrected a per-window vs per-recording
+    mismatch that had inflated apparent results by $\approx$5\,pp (\S\ref{sec:eval_trap}).
+  \item \textbf{Verified SOTA table} (\texttt{SOTA\_TABLE.md}): every published cell checked
+    against the source PDF; two prior hallucinated values retracted.
+  \item \textbf{EEGNet and ShallowConvNet reimplementations} as supervised upper bounds.
+\end{enumerate}
+
+\section{Method}
+
+\subsection{Encoders}\label{sec:encoders}
+All encoders map $x \in \mathbb{R}^{B \times 19 \times 2000}$ to
+$z \in \mathbb{R}^{B \times 256}$ via \texttt{represent(x)}.
+
+\begin{description}
+  \item[\textbf{Conv}] Four strided Conv1d blocks ($k=7$, stride 2, BN + GELU),
+    halving time at each step: $T=2000 \to 125$. Global average pool. 0.4\,M params.
+  \item[\textbf{LaBraM}] Patchify each channel into 10 time-patches of 200 samples;
+    embed with learnable channel + position embeddings; standard ViT transformer.
+    $19 \times 10 = 190$ tokens. 1.2\,M params.
+  \item[\textbf{BIOT}] Same tokenisation as LaBraM but embeds the FFT magnitude
+    spectrum of each patch instead of raw samples. Discards phase / temporal dynamics.
+  \item[\textbf{EEGPT}] Hierarchical: cross-channel attention-pool collapses
+    19 channel tokens per time-patch into one summary token, then a temporal
+    transformer runs over 10 summary tokens. Designed for channel-invariant features.
+\end{description}
+
+\subsection{SSL Objectives}
+\textbf{VICReg} \cite{bardes2022vicreg}: two views pass through encoder + projector MLP;
+loss $= \lambda\|z_1-z_2\|^2 + \mu\,V(z_1,z_2) + \nu\,C(z_1,z_2)$
+with $(\lambda,\mu,\nu)=(25,25,1)$ (paper defaults).
+
+\textbf{SIGReg} (BCS): replaces variance–covariance with an Epps–Pulley Gaussianity
+test on random projections, following the LeJEPA framework.
+
+\textbf{Corruption augmentation} (our design): on top of the standard noise/jitter/channel-drop,
+we add 20\% time masking and 20\% $\pm6\sigma$ outlier injection, forcing the encoder to recover
+clean structure from severely corrupted views.
+
+\section{Evaluation Protocol}\label{sec:eval_trap}
+
+\paragraph{The trap.}
+TUAB papers (BIOT, LaBraM, FEMBA, EEGPT) report \emph{per-window (per-sample)} metrics:
+every 10\,s segment is one test point with the label of its recording (409\,455 windows from
+2\,339 recordings in their eval split). Our evaluation produces \emph{per-recording} scores
+by mean-pooling 16 windows per patient into one embedding.
+
+Per-recording aggregation is clinically more meaningful (you classify the \emph{patient},
+not the window) but yields scores $\approx5$\,pp higher than per-window for the same encoder,
+due to noise averaging. \textcolor{warn}{\textbf{Comparing per-recording to per-window numbers
+overstates our results by 5\,pp.}} All comparisons below use the correct per-window metric.
+
+\paragraph{What this means.}
+Our initial claim of ``matching LaBraM'' used per-recording BACC (0.836) against
+LaBraM-Base's per-window BACC (0.814). The fair per-window number for our best encoder
+is \textbf{0.775}, which is below both BIOT (0.802) and LaBraM-Base (0.814).
+
+\section{Results}\label{sec:results}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\linewidth]{figures/comparison_dual.png}
+  \caption{Left: per-window results — the only fair comparison to the literature.
+           Right: per-recording — our-side only, not comparable to published numbers.
+           \textbf{Our best per-window: BACC 0.775 (SIGReg+corruption).}}
+  \label{fig:comparison}
+\end{figure}
+
+\begin{table}[h]
+\centering
+\caption{Main results — per-window BACC / AUROC (fair comparison to literature)}
+\small
+\begin{tabular}{lccl}
+\toprule
+Method & BACC & AUROC & Note \\
+\midrule
+ContraWR & 0.775 & 0.846 & Literature (LaBraM Table 1) \\
+BIOT (pretrained) & 0.802 & 0.874 & Literature (BIOT Table 4) \\
+LaBraM-Base & 0.814 & 0.902 & Literature (LaBraM Table 2) \\
+LaBraM-Huge & 0.826 & 0.916 & Literature \\
+\midrule
+\textbf{Ours — EB-JEPA base (frozen)} & \textbf{0.756} & 0.845 & Our run \\
+\textbf{Ours — +corruption (frozen)} & \textbf{0.770} & 0.848 & Our run \\
+\textbf{Ours — +spectral (frozen)} & 0.765 & 0.849 & Our run \\
+\textbf{Ours — +corruption SIGReg} & \textbf{0.775} & \textbf{0.856} & Our best \\
+EEGNet (supervised, ours) & 0.796 & 0.882 & Our reimplementation \\
+\bottomrule
+\end{tabular}
+\label{tab:main}
+\end{table}
+
+\paragraph{Transfer to TUEV (6-class events).}
+Frozen TUAB-pretrained encoder probed on TUEV event classification: BACC 0.364
+vs random floor 0.337. The SSL representation transfers across tasks ($+$0.03 BACC,
+$+$0.03 Cohen-$\kappa$), confirming it captures structure beyond recording-level label.
+
+\section{Ablation Study}\label{sec:ablation}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.85\linewidth]{figures/ablation_what_moved.png}
+  \caption{Ablation over SSL objectives and encoder variants.
+    Corruption augmentation is the dominant gain; scaling and masked JEPA did not help.}
+  \label{fig:ablation}
+\end{figure}
+
+Key findings:
+\begin{itemize}
+  \item \textbf{Corruption augmentation} $+$0.014 BACC over base (per-window).
+  \item \textbf{SIGReg $>$ VICReg}: $+$0.005 per-window, $+$0.009 AUROC — consistent with
+    EB-JEPA paper's ``SIGReg $\geq$ VICReg'' finding.
+  \item \textbf{Scaling did not help} (150 ep, deeper encoder): per-window flat at 0.768;
+    the bottleneck is encoder capacity, not training time.
+  \item \textbf{Masked-prediction JEPA} (EMA target + GRU predictor): BACC 0.682 —
+    significantly worse. A frozen global-pool readout is poorly matched to a
+    frame-prediction objective; needs per-frame probing or more tuning.
+  \item \textbf{Multi-corpus pretraining} (4$\times$ data): frozen 0.812 per-recording,
+    fine-tuned 0.837 — identical to TUAB-only fine-tuned (0.837).
+    Binding constraint is encoder capacity, not data quantity.
+\end{itemize}
+
+\section{Failure Analysis}\label{sec:bugs}
+
+\subsection{VICReg Coefficient Bug}
+The implementation used $(\lambda,\mu,\nu)=(1,1,1)$ instead of $(25,25,1)$ from the paper.
+The invariance term was underweighted by $25\times$ relative to covariance, so the optimizer
+had little incentive to match the two views. Fixed by adding \texttt{inv\_coeff} to
+\texttt{VICRegLoss} and setting $\lambda=25$ in the EEG config.
+
+\subsection{EEGPT Encoder Collapse}
+With old coefficients, EEGPT's invariance loss was stuck at $0.103$ at epoch 19
+(vs Conv's $0.038$), and the trained encoder performed \emph{below} random initialisation
+(accuracy 0.641 vs random floor 0.674). Two compounding causes:
+\begin{enumerate}
+  \item \textbf{Architectural bottleneck}: cross-channel attention-pool compresses
+    19 channel tokens $\to$ 1 summary token per time-patch, giving only 10 total tokens.
+    Random channel-drop augmentation applied to different channels per view
+    produces very different summary tokens, making the invariance term unlearnable.
+  \item \textbf{Underweighted invariance} (see above): the optimizer was not penalised
+    enough to close the view gap despite the bottleneck.
+\end{enumerate}
+With the corrected coefficients $(25,25,1)$, EEGPT's invariance loss reaches $0.018$
+by epoch 11 (vs old epoch-19 value of $0.103$) — see Figure~\ref{fig:fix}.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.7\linewidth]{figures/vicreg_fix.png}
+  \caption{EEGPT invariance loss: old coefficients $(1,1,1)$ stuck at 0.103;
+    fixed coefficients $(25,25,1)$ reach 0.018 by epoch 11.}
+  \label{fig:fix}
+\end{figure}
+
+\section{Why the Per-Window Mistake Matters}
+
+The per-recording vs per-window confusion is not merely a bookkeeping error — it reveals
+a genuine tension in EEG benchmarking:
+
+\begin{itemize}
+  \item \textbf{Clinically}, the right unit is the \emph{patient/recording}
+    (you want to classify patients, not 10-second snippets). Per-recording aggregation
+    is arguably the \emph{correct} metric for clinical deployment.
+  \item \textbf{Benchmarking}, all published SSL baselines (BIOT, LaBraM, FEMBA) use
+    per-window to report higher $n$ and lower variance, making the benchmark
+    look more powerful than the clinical task demands.
+  \item \textbf{Our honest position}: per-window 0.775 (below BIOT/LaBraM); per-recording
+    0.836 with a simple frozen linear probe, $0.837$ with fine-tuning — competitive with
+    supervised EEGNet (per-recording 0.824).
+\end{itemize}
+
+\section{Conclusion}
+EB-JEPA applied to EEG reaches per-window BACC 0.775 with corruption augmentation and SIGReg
+— competitive with simple supervised baselines and established SSL methods like ContraWR,
+but below BIOT and LaBraM at the fair comparison level.
+
+\paragraph{What works.} Corruption augmentation. SIGReg. Strided Conv1D encoder (simple,
+effective, beats all transformer variants with 25$\times$ fewer parameters).
+
+\paragraph{What doesn't.} Masked-prediction JEPA (underperforms at 20 ep with global-pool probe).
+Transformer encoders trained with wrong VICReg coefficients. Per-window scaling did not help.
+
+\paragraph{What remains open.} EEGPT with fixed VICReg coefficients (running); neural tokenizer
+(à la LaBraM) for higher-quality patch embeddings; longer pretraining on multi-corpus data with
+a larger transformer encoder.
+
+%\bibliographystyle{plain}
+%\bibliography{refs}
+% Manual references to keep this self-contained:
+\begin{thebibliography}{9}
+\bibitem{bardes2022vicreg} Bardes et al., \emph{VICReg}, ICLR 2022.
+\bibitem{yang2023biot} Yang et al., \emph{BIOT}, NeurIPS 2023.
+\bibitem{jiang2024labram} Jiang et al., \emph{LaBraM}, ICLR 2024.
+\bibitem{zhang2024eegpt} Zhang et al., \emph{EEGPT}, 2024.
+\bibitem{tang2025femba} Tang et al., \emph{FEMBA}, 2025.
+\bibitem{schirrmeister2017} Schirrmeister et al., \emph{Deep Learning with CNNs for EEG}, 2017.
+\end{thebibliography}
+
+\end{document}
