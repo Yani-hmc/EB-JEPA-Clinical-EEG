@@ -121,7 +121,8 @@ class EEGSSL(nn.Module):
         self.projector = Projector(spec)
         self.ssl_loss = cfg.get("ssl_loss", "vicreg")
         if self.ssl_loss == "vicreg":
-            self.loss_fn = VICRegLoss(std_coeff=cfg.get("std_coeff", 1.0),
+            self.loss_fn = VICRegLoss(inv_coeff=cfg.get("inv_coeff", 25.0),
+                                       std_coeff=cfg.get("std_coeff", 25.0),
                                        cov_coeff=cfg.get("cov_coeff", 1.0))
         elif self.ssl_loss == "sigreg":
             self.loss_fn = BCS(num_slices=cfg.get("num_slices", 256),

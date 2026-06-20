@@ -36,8 +36,9 @@ model:
   # SSL objective (EEGSSL)
   ssl_loss: vicreg       # vicreg (default) | sigreg (LeJEPA/BCS anti-collapse)
   projector_spec: 256-1024-1024
-  std_coeff: 1.0         # vicreg only
-  cov_coeff: 1.0         # vicreg only
+  inv_coeff: 25.0        # vicreg only — invariance weight (Bardes et al. 2022)
+  std_coeff: 25.0        # vicreg only — variance weight
+  cov_coeff: 1.0         # vicreg only — covariance weight
   num_slices: 256        # sigreg only
   lmbd: 10.0             # sigreg only
 optim:
