@@ -1,0 +1,170 @@
+\documentclass[10pt,a4paper]{article}
+\usepackage[margin=2cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage[expansion=false]{microtype}
+\usepackage{enumitem}
+\usepackage[T1]{fontenc}
+
+\hypersetup{colorlinks=true,linkcolor=blue!60!black}
+
+\definecolor{warn}{RGB}{192,57,43}
+\definecolor{good}{RGB}{39,174,96}
+
+\title{\textbf{Experiment Optimization Plan}\\
+  \large Sweeps, Ablations, and Open Decisions for the EB-JEPA EEG Track}
+\author{EB-JEPA EEG track}
+\date{June 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+A ranked catalogue of every sweep, ablation, and methodological fix still open on
+this project, organized by expected information gained per GPU-hour rather than by
+category. Cross-referenced against \texttt{reports/DECISION\_LOG.md}'s open decisions
+(D1--D6) and \texttt{reports/EXPERIMENTS.md}'s ``considered but not run'' list, so
+this plan extends existing open questions instead of duplicating them.
+\end{abstract}
+
+\section{Statistical rigor (cheapest, currently missing entirely)}
+\begin{enumerate}
+  \item \textbf{Multi-seed training.} Every encoder/loss config run so far used a
+  single seed (\texttt{--single} in the launcher, for speed). The launcher already
+  supports \texttt{--sweep <name>} with 3 seeds (1/1000/10000) for free. Re-running the
+  top 2--3 configs with 3 seeds would tell us whether ConvNet's lead over LaBraM is
+  real or noise.
+  \item \textbf{Bootstrap / clustered confidence intervals} on probe metrics. Windows
+  from the same recording are not i.i.d.; a naive CI understates uncertainty. Nobody
+  has computed this yet.
+  \item \textbf{Probe-only seed variance.} Re-fitting the MLP probe with 5 different
+  \texttt{random\_state} values costs nothing (no retraining) and separates probe
+  variance from encoder variance.
+\end{enumerate}
+
+\section{Loss / objective coefficient sweeps}
+\begin{itemize}
+  \item \textbf{VICReg}: now fixed to the paper's $(\lambda,\mu,\nu)=(25,25,1)$, but
+  worth sweeping around it -- e.g.\ $(15,15,1)$, $(40,40,1)$ -- per architecture,
+  since the bug's effect was architecture-dependent (catastrophic for EEGPT, mild for
+  Conv).
+  \item \textbf{SIGReg}: \texttt{num\_slices} $\in \{64,128,256,512\}$,
+  \texttt{lmbd} $\in \{1,10,50\}$.
+  \item \textbf{Predictive JEPA}: EMA decay \texttt{ema} $\in \{0.99, 0.996, 0.999\}$
+  (too fast $\Rightarrow$ target chases online, defeating the point; too slow
+  $\Rightarrow$ barely updates); prediction horizon (currently predicts every future
+  frame one-by-one from frame 0 -- could instead predict only frame $+1$, or frame
+  $+k$ for varying $k$); \texttt{pred\_std\_coeff}/\texttt{pred\_cov\_coeff}.
+\end{itemize}
+
+\section{Augmentation ablations (cheap, high diagnostic value)}
+\begin{itemize}
+  \item \textbf{Leave-one-out}: disable each of the 4 augmentation steps (scale
+  jitter, noise, channel-drop, time-mask) individually and retrain, to isolate which
+  one actually drives the gain. \texttt{EXPERIMENTS.md} explicitly flags this as never
+  separated for the corruption variant either.
+  \item \textbf{EEGPT-specific}: disable channel-drop only for EEGPT
+  (\textbf{D1} in the decision log -- channel-drop conflicts with EEGPT's
+  channel-pooling bottleneck; jobs 75752/75806 test this).
+  \item \textbf{Exact-corruption coefficients} (\texttt{aug\_mask\_frac},
+  \texttt{aug\_outlier\_frac}, \texttt{aug\_outlier\_scale}): only the spectral-loss
+  coefficients (0.05/0.1/0.3) were swept; the corruption-specific knobs themselves
+  were not.
+\end{itemize}
+
+\section{Architecture hyperparameter sweeps}
+\begin{itemize}
+  \item Conv: \texttt{hidden} / \texttt{depth} / \texttt{kernel\_size}.
+  \item Transformers: \texttt{embed\_dim}, \texttt{tr\_depth}, \texttt{n\_heads},
+  \texttt{patch\_len} (1\,s patches were never compared against e.g.\ 0.5\,s or 2\,s).
+  \item \textbf{Capacity-matched comparison (D6, open).} Conv ($\sim$0.4M params) is
+  currently compared to LaBraM/EEGPT/BIOT at whatever size they happen to be --
+  ``architecture wins'' and ``more capacity wins'' are confounded. Scaling every
+  encoder to an equal parameter count before comparing is the single biggest
+  methodological gap in the architecture comparison.
+\end{itemize}
+
+\section{Training schedule}
+\begin{itemize}
+  \item \textbf{Epoch count}: everything so far is 20 epochs. LaBraM trained
+  $\sim$200 epochs on a much larger corpus -- 20 may simply be too few for
+  transformers to converge, independent of architecture quality.
+  \item \textbf{LR schedule}: currently flat AdamW, no warmup/decay -- a cosine
+  schedule could matter more for transformers than for Conv.
+  \item \textbf{Batch size}: VICReg's covariance term needs enough samples per batch
+  to estimate decorrelation meaningfully; a larger batch could shift the
+  variance/covariance balance.
+\end{itemize}
+
+\section{Data scale}
+\begin{itemize}
+  \item \textbf{\texttt{subset\_frac} scaling curve}: 5\% $\to$ 25\% $\to$ 50\%
+  $\to$ 100\%, plotted against probe BACC -- reveals whether any encoder is
+  data-starved (transformers usually need more data than Conv before showing their
+  advantage).
+  \item \textbf{Multi-corpus} (TUAB+TUEV+TUSZ+TUEP, tried once on Conv only by
+  tvasnier) -- never tried on the transformer encoders, where extra data might
+  matter more.
+\end{itemize}
+
+\section{Probe / eval protocol}
+\begin{itemize}
+  \item \textbf{LogReg vs.\ MLP probe (D3, open)}: only MLP has been used so far.
+  LogReg is the literature standard, more directly comparable to SimCLR/MoCo-style
+  papers, and removes the probe-capacity confound.
+  \item \textbf{\texttt{n\_windows} sweep} (8/16/32/all) for per-recording pooling;
+  now that per-window scoring exists, compare both protocols at multiple $N$.
+  \item \textbf{Re-score every existing checkpoint under both protocols} (per-window
+  now implemented but not yet run) for a complete dual table.
+\end{itemize}
+
+\section{Cross-component combinations (each tested in isolation so far)}
+\begin{itemize}
+  \item \textbf{Spectral loss + corrected VICReg (D4, open).} The best single result
+  (0.836 per-recording) used the spectral auxiliary loss but with the
+  \emph{buggy} VICReg coefficients. Never retrained with the fix -- open question
+  whether spectral was adding independent signal or just compensating for the bug.
+  \item \textbf{Corruption + SIGReg} (lightly tried) vs.\ \textbf{corruption +
+  spectral} (tried, regressed) -- the fuller cross product (augmentation
+  $\times$ loss $\times$ anti-collapse mechanism) has not been run.
+  \item \textbf{Predictive JEPA + SIGReg} anti-collapse instead of the current
+  Hinge-std/covariance pair.
+\end{itemize}
+
+\section{Architectural fixes worth isolating}
+\begin{itemize}
+  \item \textbf{BIOT with phase}: currently FFT-magnitude only (discards phase) --
+  adding a complex/phase channel to the token embedding directly tests whether
+  phase loss is the bottleneck.
+  \item \textbf{EEGPT without the channel-pool bottleneck}: replace the
+  channel-summarization attention with simple mean-pool across channels, to test
+  whether the hierarchical design itself (not just channel-drop) is the problem.
+  \item \textbf{LaBraM-style tokenizer warm-start (D2, open)}: pretrain the patch
+  embedding with a quick reconstruction objective before SSL, closer to the real
+  LaBraM recipe.
+\end{itemize}
+
+\section{Extensions beyond TUAB}
+\begin{itemize}
+  \item \textbf{TUEV} (6-class, harder, imbalanced) -- the original README's
+  suggested follow-up, untouched.
+  \item Other datasets already scoped in \texttt{suggestions/datasets/}:
+  BCI-IV-2a, HMC, sleep-EDF, HGD -- would test whether any encoder's advantage is
+  TUAB-specific or general.
+\end{itemize}
+
+\section{Ranked recommendation}
+By expected information gained per GPU-hour, in order:
+\begin{enumerate}
+  \item Multi-seed runs on the existing best 2--3 configs (Section~1).
+  \item Capacity-matched architecture comparison (Section~4).
+  \item Augmentation leave-one-out (Section~3).
+  \item Epoch-count sweep for the transformer encoders (Section~5).
+  \item Spectral + fixed-VICReg retrain, i.e.\ D4 (Section~7).
+\end{enumerate}
+These five directly resolve open questions already on record, rather than opening
+new ones -- the highest-leverage use of remaining compute.
+
+\end{document}
