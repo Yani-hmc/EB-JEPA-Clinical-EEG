@@ -1,0 +1,136 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage[T1]{fontenc}
+\usepackage{hyperref}
+\usepackage{parskip}
+
+\title{\textbf{EB-JEPA for EEG — Concepts and Intuitions}\\
+\large A pure-concept summary, no maths}
+\author{EB-JEPA EEG track}
+\date{June 2026}
+
+\begin{document}
+\maketitle
+
+\section*{What is a representation?}
+
+An EEG recording is a sequence of voltages across 19 electrodes over time.
+These raw numbers are hard to reason about directly — they vary enormously
+across patients, devices, and recording conditions.
+
+A \textbf{representation} is a compact summary of the recording: a vector of,
+say, 256 numbers that captures what \emph{matters} about the signal and ignores
+what doesn't.  A good representation is one where recordings that are clinically
+similar (both abnormal, or both showing the same type of event) end up close to
+each other in that 256-dimensional space, and clinically different recordings
+end up far apart.
+
+The \textbf{encoder} is the function that maps a raw EEG window to its
+representation.  Training an encoder is training it to produce these
+meaningful summaries.
+
+\section*{Why self-supervised? The labelling bottleneck}
+
+To train a supervised model you need labelled examples: a neurologist must
+inspect each recording and write ``normal'' or ``abnormal''.  This is
+expensive, slow, and requires rare expertise.  Most EEG data in the world
+is unlabelled.
+
+\textbf{Self-supervised learning (SSL)} sidesteps this: it trains an encoder
+to produce good representations \emph{without any labels}, using only the
+structure of the raw signal itself.  The idea is to give the encoder a task
+that forces it to learn useful structure — not ``is this abnormal?'' but
+something like ``do these two corrupted versions of the same signal look like
+the same thing?''
+
+Once the encoder is trained on unlabelled data, a very simple classifier
+(a single linear layer, called a \emph{probe}) is trained on a small
+labelled set.  If the representations are good, the probe can separate
+normal from abnormal without ever retraining the encoder.
+
+\section*{The cave allegory}
+
+In Plato's allegory of the cave, prisoners see only shadows projected on a
+wall.  They have never seen the real objects casting the shadows, but they
+learn to recognise and predict the shadow patterns.
+
+Our SSL encoder is in the same position.  It sees raw EEG voltages — the
+shadows.  It never sees the neurologist's verdict — the real object behind
+the signal.  But by learning that \emph{two different corrupted views of the
+same shadow are shadows of the same object}, it is forced to build an
+internal model of what is really there.
+
+A linear probe then asks: ``given your model of what is really there, is
+this patient's brain behaving normally?''
+
+\section*{What is invariance? What is collapse?}
+
+\textbf{Invariance} is the property we want: the encoder should output the
+same representation for two corrupted versions of the same signal.
+Forcing $z_1 \approx z_2$ (where $z_1$ and $z_2$ are the representations
+of the two views) is the training signal.
+
+The problem: the trivially simplest way to satisfy $z_1 = z_2$ is to output
+the \textbf{same constant vector for everything}.  This is called
+\textbf{collapse} — the encoder learns nothing, because all signals look
+the same.
+
+\textbf{Anti-collapse regularisation} prevents this.  VICReg does it by
+adding two extra penalties: one that forces the encoder to \emph{spread}
+its output across dimensions (variance term), and one that forces different
+output dimensions to carry different information (covariance term).
+SIGReg does it by testing that the distribution of representations looks
+Gaussian (a non-constant distribution cannot be collapsed).
+
+\section*{What does the score mean?}
+
+\textbf{BACC} (balanced accuracy) is the average of the true positive rate
+(how often abnormal recordings are correctly detected) and the true negative
+rate (how often normal recordings are correctly classified).  It is fair even
+when the two classes are unequal in size.  Random guessing gives 0.5;
+perfect classification gives 1.0.
+
+\textbf{AUROC} (area under the ROC curve) measures how well the model
+\emph{ranks} recordings by their abnormality score, at every possible
+threshold.  1.0 is perfect; 0.5 is random.
+
+\textbf{Per-window} vs \textbf{per-recording}: a recording is typically
+several minutes long, cut into 10-second windows.  Per-window scoring
+classifies each window independently; per-recording scoring averages across
+all windows of the same patient.  Per-recording scores are systematically
+about 5 percentage points higher for the same encoder, because averaging
+reduces noise.  Most of the published literature reports per-window;
+our primary evaluation reports per-recording (the clinically meaningful metric).
+Comparing the two without care manufactures false wins.
+
+\section*{What is transfer?}
+
+TUAB is a binary task (normal / abnormal).
+TUEV is a 6-class task (spike-and-slow-wave, generalised periodic discharge,
+lateralised periodic discharge, eye movement, artefact, background).
+
+\textbf{Transfer} means: train the encoder on TUAB without labels, then freeze
+it and train a linear probe on TUEV.  If the representations are genuinely
+general — not just memorised TUAB-specific patterns — they should also separate
+TUEV event types, even though the encoder never saw a TUEV label.
+
+A model that transfers well is learning something about the \emph{structure
+of EEG} rather than the specific abnormality label.
+
+\section*{Why does the simplest encoder win?}
+
+A 0.4-million-parameter strided convolutional network (Conv1D) consistently
+outperforms larger transformer architectures (1.2M--3.65M parameters) in
+our experiments.
+
+The intuition: transformers are powerful but data-hungry.  They need millions
+of examples and long training to learn useful attention patterns.  On 2\,717
+recordings trained for 20 epochs, there is simply not enough signal to fill
+their capacity.  The small conv has less capacity but fits the data regime.
+
+The published foundation models (LaBraM, BIOT) that do outperform our conv
+were pretrained on tens of thousands of hours of EEG data across multiple
+hospitals and devices — a scale we do not have access to.
+
+\end{document}
