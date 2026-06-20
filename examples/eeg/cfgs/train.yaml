@@ -38,11 +38,13 @@ model:
   ssl_loss: vicreg       # vicreg (default) | sigreg (LeJEPA/BCS anti-collapse) -- twoview only
   projector_spec: 256-1024-1024   # twoview only
   inv_coeff: 25.0        # vicreg only — invariance weight (Bardes et al. 2022: 25)
-  std_coeff: 25.0        # vicreg twoview: 25.0 (paper); predictive: set to 1.0
-  cov_coeff: 1.0         # anti-collapse cov term
+  std_coeff: 25.0        # vicreg only (paper: 25) -- NOT shared with predictive, see below
+  cov_coeff: 1.0         # vicreg only (paper: 1)  -- NOT shared with predictive, see below
   num_slices: 256        # sigreg only
   lmbd: 10.0             # sigreg only
   ema: 0.996             # predictive only -- target-encoder momentum
+  pred_std_coeff: 1.0    # predictive only -- own anti-collapse std weight (independent
+  pred_cov_coeff: 1.0    # predictive only -- of vicreg's, which now follow the paper's 25/1)
 optim:
   epochs: 20
   lr: 0.001

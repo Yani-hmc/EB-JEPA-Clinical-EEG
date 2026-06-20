@@ -168,8 +168,12 @@ class EEGPredictiveJEPA(nn.Module):
         for p in self.target_encoder.parameters():
             p.requires_grad_(False)
         self.ema = cfg.get("ema", 0.996)
-        self.std_coeff = cfg.get("std_coeff", 1.0)
-        self.cov_coeff = cfg.get("cov_coeff", 1.0)
+        # Deliberately separate from VICReg's std_coeff/cov_coeff (now tuned to the
+        # paper's 25/1 for the *invariance* objective) -- this objective's anti-collapse
+        # term plays a different role (no projector, no invariance term to balance
+        # against) and needs its own weighting.
+        self.std_coeff = cfg.get("pred_std_coeff", 1.0)
+        self.cov_coeff = cfg.get("pred_cov_coeff", 1.0)
         self.std_loss_fn = HingeStdLoss(std_margin=1.0)
         self.cov_loss_fn = CovarianceLoss()
         self.predictor = RNNPredictor(hidden_size=encoder.out_dim, action_dim=1,
