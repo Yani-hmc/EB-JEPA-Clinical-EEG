@@ -96,7 +96,7 @@ def do_tsne(X, perplexity=30, n_iter=1000):
     Xpca  = PCA(n_components=n_pca, random_state=0).fit_transform(Xs)
     return TSNE(
         n_components=2, perplexity=min(perplexity, len(Xpca) - 1),
-        n_iter=n_iter, random_state=42, init="pca", learning_rate="auto"
+        max_iter=n_iter, random_state=42, init="pca", learning_rate="auto"
     ).fit_transform(Xpca)
 
 
