@@ -397,6 +397,8 @@ Conv + VICReg$^{*}$ + fftc 0.3 & -- & 0.802 & 0.889 & -- & REC-WIN & Frozen & TU
 Conv + VICReg (fixed, spec=0) & -- & 0.819 & 0.900 & 0.382 & REC-WIN & Frozen & TUAB \\
 Conv + VICReg (fixed) + spec 0.05 & -- & 0.802 & 0.891 & 0.313 & REC-WIN & Frozen & TUAB \\
 Conv + VICReg (fixed) + spec 0.10 & -- & 0.795 & 0.892 & 0.375 & REC-WIN & Frozen & TUAB \\
+Conv + VICReg (fixed) + spec 0.20 & -- & 0.813 & 0.889 & 0.357 & REC-WIN & Frozen & TUAB \\
+Conv + VICReg (fixed) + spec 0.30 & -- & 0.799 & 0.885 & 0.375 & REC-WIN & Frozen & TUAB \\
 \midrule
 \multicolumn{8}{l}{\textit{Conv1D --- corruption augmentation ablation (3 seeds)}} \\
 Conv + VICReg$^{*}$ + corrupt (s0) & 0.770 & 0.825 & 0.904 & 0.382 & WIN / REC-WIN & Frozen & TUAB \\
@@ -437,11 +439,15 @@ EEGPT + VICReg (no chan drop) & -- & -- & -- & 0.358 & -- & Frozen & TUAB \\
   \item \textbf{Conv1D dominates} all encoder families at equal or lower parameter count.
   \item \textbf{Corruption augmentation} (time masking + spike injection) is the single
     most impactful ingredient: $+0.014$ WIN, $+0.029$ REC.
-  \item \textbf{Spectral loss with fixed VICReg hurts}: with correct coefficients (inv=25),
-    adding spectral reg at 0.05 or 0.10 decreases BACC (0.819 $\to$ 0.802 $\to$ 0.795).
-    The previous best of 0.836 (spec=0.1) was achieved with buggy VICReg (inv=1), where
-    the spectral loss compensated for the underweighted invariance term.  With correct
-    VICReg, spectral regularisation provides no independent benefit.
+  \item \textbf{Spectral loss is neutral with fixed VICReg}: a full sweep of
+    $w_{\rm spec} \in \{0.05, 0.10, 0.20, 0.30\}$ with correct VICReg coefficients (inv=25)
+    yields TUAB BACC in $[0.795, 0.813]$, all within single-seed noise of the no-spectral
+    baseline (0.819, $\pm$0.004 across 3 seeds).  Drops range from 0.006 to 0.024\,pp ---
+    not statistically significant with single-seed runs.
+    The previous best of 0.836 (spec=0.1, buggy VICReg) is not reproducible with correct
+    coefficients; the spectral loss was compensating for the 25$\times$ underweighted
+    invariance term, not providing independent signal.  The accurate statement is
+    \emph{neutral-to-mildly-harmful}, not dramatically bad.
   \item \textbf{EEGPT collapsed} under both objectives with the buggy VICReg;
     the channel-drop vs.\ channel-pool conflict is the architectural root cause.
     Removing channel-drop improves TUEV transfer (0.182 $\to$ 0.358).
@@ -862,11 +868,16 @@ during pretraining}, demonstrating cross-task generalisation.
   \item \textbf{EEGPT channel-drop $\times$ channel-pool conflict}: the cross-attention
     pooling (19 channels $\to$ 1 token per time step) is structurally incompatible with
     channel-drop augmentation.  Removing channel-drop raises TUEV BACC from 0.182 to 0.358.
-  \item \textbf{Spectral loss independence myth}: the D4 open question is resolved.
-    The spectral auxiliary loss (spec=0.1) improved BACC from 0.796 to 0.836 with buggy
-    VICReg, but \emph{hurts} (0.819 $\to$ 0.795) with correctly-weighted VICReg.
-    The spectral loss was compensating for the invariance underweighting, not providing
-    independent signal.
+  \item \textbf{Spectral loss provides no independent signal (D4 resolved)}:
+    a full 4-point sweep ($w_{\rm spec} \in \{0.05, 0.10, 0.20, 0.30\}$) with
+    correctly-weighted VICReg (inv=25) yields TUAB BACC $\in [0.795, 0.813]$,
+    all within single-seed noise of the no-spectral baseline (0.819).
+    Drops of 0.006--0.024\,pp are not statistically significant with single runs.
+    The spectral loss was compensating for the buggy invariance underweighting
+    (contributing $1 \times 0.023 = 0.023$ vs.\ $25 \times 0.023 = 0.575$ with the fix);
+    with correct VICReg the spectral term is redundant.
+    The accurate characterisation is \emph{neutral-to-mildly-harmful}, not dramatically
+    detrimental --- multi-seed runs would be needed to confirm even a small negative effect.
 \end{enumerate}
 
 \subsection{Open Scientific Questions}
@@ -880,7 +891,11 @@ during pretraining}, demonstrating cross-task generalisation.
     pretraining duration (200 vs.\ 20 epochs), data diversity.
   \item[D3] LogReg vs.\ MLP probe: the MLP inflates BACC by $\approx$0.01--0.02
     vs.\ LogReg; switching would enable direct comparison to SimCLR/MoCo literature.
-  \item[D4] (\emph{Resolved}) Spectral + fixed VICReg: no independent benefit found.
+  \item[D4] (\emph{Resolved}) Spectral + fixed VICReg: neutral-to-mildly-harmful.
+    Full sweep ($w_{\rm spec} \in \{0.05, 0.10, 0.20, 0.30\}$) shows drops of
+    0.006--0.024\,pp TUAB BACC vs.\ baseline, all within single-seed noise.
+    Multi-seed confirmation would be needed to rule out a small negative effect entirely,
+    but no positive benefit exists at any tested coefficient.
   \item[D5] Aperiodic shortcut: does EB-JEPA's SIGReg representation exploit the 1/$f$
     spectral slope?  Apply~\cite{spectral_audit}'s phase-preserving Fourier intervention to
     frozen Conv1D + SIGReg to determine if BACC drops after flattening.
