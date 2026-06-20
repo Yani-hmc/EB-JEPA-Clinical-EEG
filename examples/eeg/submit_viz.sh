@@ -13,7 +13,11 @@ PYTHON=/lustre/work/vivatech-slightlyunawarefc/yhammache/venvs/eb_jepa_aarch64/b
 REPO=/lustre/work/vivatech-slightlyunawarefc/tvasnier/eb_jepa
 SCRIPT=$REPO/examples/eeg/viz_latents.py
 
-# ── vérifier que les libs sont bien là ───────────────────────────────────────
+# ── bootstrap pip si nécessaire, puis installer les libs manquantes ──────────
+echo "=== bootstrap pip + deps ==="
+$PYTHON -m ensurepip --upgrade 2>/dev/null || true
+$PYTHON -m pip install --quiet umap-learn matplotlib 2>/dev/null || true
+
 echo "=== check deps ==="
 $PYTHON -c "import sklearn; print('sklearn', sklearn.__version__)"
 $PYTHON -c "import umap; print('umap ok')"
