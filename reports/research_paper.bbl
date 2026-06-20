@@ -1,0 +1,142 @@
+\begin{thebibliography}{18}
+\providecommand{\natexlab}[1]{#1}
+\providecommand{\url}[1]{\texttt{#1}}
+\expandafter\ifx\csname urlstyle\endcsname\relax
+  \providecommand{\doi}[1]{doi: #1}\else
+  \providecommand{\doi}{doi: \begingroup \urlstyle{rm}\Url}\fi
+
+\bibitem[Assran et~al.(2023)Assran, Duval, Misra, Bojanowski, Vincent, Rabbat,
+  LeCun, and Ballas]{ijepa}
+Mahmoud Assran, Quentin Duval, Ishan Misra, Piotr Bojanowski, Pascal Vincent,
+  Michael Rabbat, Yann LeCun, and Nicolas Ballas.
+\newblock Self-supervised learning from images with a joint-embedding
+  predictive architecture.
+\newblock Technical report, Meta AI, 2023.
+\newblock URL \url{https://arxiv.org/abs/2301.08243}.
+
+\bibitem[Bardes et~al.(2022)Bardes, Ponce, and LeCun]{vicreg}
+Adrien Bardes, Jean Ponce, and Yann LeCun.
+\newblock {VICReg}: Variance-invariance-covariance regularization for
+  self-supervised learning.
+\newblock In \emph{International Conference on Learning Representations
+  (ICLR)}, 2022.
+\newblock URL \url{https://arxiv.org/abs/2105.04906}.
+
+\bibitem[Bindra and Panwar(2026)]{spectral_audit}
+Jasmeet~Singh Bindra and Siddharth Panwar.
+\newblock A spectral audit framework reveals task-dependent aperiodic reliance
+  across {EEG} and {ECG} deep learning.
+\newblock \emph{arXiv preprint arXiv:2606.08583}, 2026.
+
+\bibitem[Epps and Pulley(1983)]{epps1983}
+T.~W. Epps and Lawrence~B. Pulley.
+\newblock A test for normality based on the empirical characteristic function.
+\newblock \emph{Biometrika}, 70\penalty0 (3):\penalty0 723--726, 1983.
+
+\bibitem[Jiang et~al.(2024)Jiang, Zhao, and Lu]{labram}
+Wei-Bang Jiang, Li-Ming Zhao, and Bao-Liang Lu.
+\newblock Large brain model for learning generic representations with
+  tremendous eeg data in bci.
+\newblock In \emph{International Conference on Learning Representations
+  (ICLR)}, 2024.
+\newblock URL \url{https://arxiv.org/abs/2405.18765}.
+
+\bibitem[Kastrati et~al.(2025)Kastrati, B{\"u}rki, Lauer, Xuan, Iaquinto, and
+  Wattenhofer]{eeg_bench}
+Ard Kastrati, Josua B{\"u}rki, Jonas Lauer, Cheng Xuan, Raffaele Iaquinto, and
+  Roger Wattenhofer.
+\newblock {EEG-Bench}: A benchmark for {EEG} foundation models in clinical
+  applications.
+\newblock In \emph{Advances in Neural Information Processing Systems
+  (NeurIPS)}, 2025.
+\newblock URL \url{https://arxiv.org/abs/2512.08959}.
+
+\bibitem[Kie{\ss}ner et~al.(2023)Kie{\ss}ner, Brunner, Ramantani, and
+  Ball]{kiessner2023}
+A.~Kie{\ss}ner, C.~Brunner, G.~Ramantani, and T.~Ball.
+\newblock A reproducible deep learning-based method for automated pathology
+  classification of {EEG} using the {Temple University Hospital EEG Corpus}.
+\newblock \emph{Frontiers in Neuroscience}, 17, 2023.
+
+\bibitem[Kostas et~al.(2021)Kostas, Aroca-Ouellette, and Rudzicz]{bendr}
+Demetres Kostas, St{\'e}phane Aroca-Ouellette, and Frank Rudzicz.
+\newblock {BENDR}: Using transformers and a contrastive self-supervised
+  learning task to learn from massive amounts of {EEG} data.
+\newblock \emph{Frontiers in Human Neuroscience}, 15, 2021.
+\newblock URL \url{https://arxiv.org/abs/2101.12037}.
+
+\bibitem[Lawhern et~al.(2018)Lawhern, Solon, Waytowich, Gordon, Hung, and
+  Lance]{eegnet}
+Vernon~J. Lawhern, Amelia~J. Solon, Nicholas~R. Waytowich, Stephen~M. Gordon,
+  Chou~P. Hung, and Brent~J. Lance.
+\newblock {EEGNet}: A compact convolutional neural network for eeg-based
+  brain-computer interfaces.
+\newblock \emph{Journal of Neural Engineering}, 15\penalty0 (5), 2018.
+\newblock URL \url{https://arxiv.org/abs/1611.08024}.
+
+\bibitem[LeCun(2022)]{lecun2022}
+Yann LeCun.
+\newblock A path towards autonomous machine intelligence.
+\newblock In \emph{OpenReview}, 2022.
+
+\bibitem[Obeid and Picone(2016)]{tuab}
+Iyad Obeid and Joseph Picone.
+\newblock The temple university hospital {EEG} corpus.
+\newblock TUH EEG Corpus v3.0.1, 2016.
+
+\bibitem[Schirrmeister et~al.(2017)Schirrmeister, Springenberg, Fiederer,
+  Glasstetter, Eggensperger, Tangermann, Hutter, Burgard, and
+  Ball]{shallowconvnet}
+Robin~Tibor Schirrmeister, Jost~Tobias Springenberg, Lukas Dominique~Josef
+  Fiederer, Martin Glasstetter, Katharina Eggensperger, Michael Tangermann,
+  Frank Hutter, Wolfram Burgard, and Tonio Ball.
+\newblock Deep learning with convolutional neural networks for decoding and
+  visualization of {EEG} pathology.
+\newblock \emph{IEEE Signal Processing in Medicine and Biology Symposium},
+  2017.
+
+\bibitem[Tegon et~al.(2025)Tegon, Ingolfsson, Wang, Benini, and Li]{femba}
+Anna Tegon, Thorir~Mar Ingolfsson, Xiaying Wang, Luca Benini, and Yawei Li.
+\newblock {FEMBA}: Efficient and scalable {EEG} analysis with a bidirectional
+  mamba foundation model.
+\newblock \emph{arXiv preprint arXiv:2502.06438}, 2025.
+
+\bibitem[Terver et~al.(2026)Terver, Balestriero, Dervishi, Fan, Garrido,
+  Nagarajan, Sinha, Zhang, Rabbat, LeCun, and Bar]{ebjepa_lib}
+Basile Terver, Randall Balestriero, Megi Dervishi, David Fan, Quentin Garrido,
+  Tushar Nagarajan, Koustuv Sinha, Wancong Zhang, Mike Rabbat, Yann LeCun, and
+  Amir Bar.
+\newblock A lightweight library for energy-based joint-embedding predictive
+  architectures.
+\newblock arXiv preprint arXiv:2602.03604, 2026.
+
+\bibitem[Vaswani et~al.(2017)Vaswani, Shazeer, Parmar, Uszkoreit, Jones, Gomez,
+  Kaiser, and Polosukhin]{transformer}
+Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones,
+  Aidan~N. Gomez, Lukasz Kaiser, and Illia Polosukhin.
+\newblock Attention is all you need.
+\newblock In \emph{Advances in Neural Information Processing Systems
+  (NeurIPS)}, 2017.
+
+\bibitem[Wang et~al.(2024)Wang, Liu, He, Xu, Ma, and Li]{eegpt}
+Guangyu Wang, Wenchao Liu, Yuhong He, Cong Xu, Lin Ma, and Haifeng Li.
+\newblock {EEGPT}: Pretrained transformer for universal and reliable
+  representation of eeg signals.
+\newblock In \emph{Advances in Neural Information Processing Systems
+  (NeurIPS)}, 2024.
+\newblock URL \url{https://arxiv.org/abs/2405.18765}.
+
+\bibitem[Yang et~al.(2021)Yang, Xiao, Westover, and Sun]{contrawr}
+Chaoqi Yang, Danica Xiao, M.~Brandon Westover, and Jimeng Sun.
+\newblock Self-supervised {EEG} representation learning for automatic sleep
+  staging.
+\newblock In \emph{arXiv preprint arXiv:2110.15278}, 2021.
+
+\bibitem[Yang et~al.(2023)Yang, Westover, and Sun]{biot}
+Chaoqi Yang, M.~Brandon Westover, and Jimeng Sun.
+\newblock {BIOT}: Cross-data biosignal learning in the wild.
+\newblock In \emph{Advances in Neural Information Processing Systems
+  (NeurIPS)}, 2023.
+\newblock URL \url{https://arxiv.org/abs/2305.10351}.
+
+\end{thebibliography}
