@@ -4,7 +4,6 @@
 #SBATCH --account=vivatech-slightlyunawarefc
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=16
-#SBATCH --mem=32G
 #SBATCH --time=00:25:00
 #SBATCH --output=/lustre/work/vivatech-slightlyunawarefc/tcourtois/train_logs/viz_latents_%j.out
 
