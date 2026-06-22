@@ -1,5 +1,9 @@
 # EB-JEPA on EEG - Clean Reproduction Bundle
 
+<p align="center">
+  <img src="assets/EEG_EB_JEPA.png" alt="EB-JEPA Architecture for EEG" width="90%">
+</p>
+
 This repository organises everything you need to **reproduce the EB-JEPA results**
 on the two TUH EEG benchmarks (TUAB normal/abnormal binary, TUEV 6-class event
 detection). It is divided into **four sections**:
@@ -78,9 +82,15 @@ Designed for the **DALIA GB200 cluster** (slurm); each row takes 20–60 min on
 
 ---
 
+## Results summary
+
+<p align="center">
+  <img src="assets/research_paper_summarize.png" alt="EB-JEPA results summary" width="95%">
+</p>
+
+---
+
 ## License
 
 This work is released under the same license as the upstream EB-JEPA package
 - see [`LICENSE.md`](LICENSE.md).
-
-  

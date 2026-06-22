@@ -1,5 +1,9 @@
 # TUAB Experiments - EB-JEPA reference table reproduction
 
+<p align="center">
+  <img src="../assets/EEG_EB_JEPA.png" alt="EB-JEPA Architecture for EEG" width="85%">
+</p>
+
 This directory contains **one shell script per row** of our TUAB EB-JEPA
 [`reference_table_JEPA_V1.md`](reference_table_JEPA_V1.md). Each script
 reproduces a single row end-to-end: SSL pretraining + frozen-encoder probe.
