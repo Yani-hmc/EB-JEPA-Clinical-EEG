@@ -82,3 +82,5 @@ Designed for the **DALIA GB200 cluster** (slurm); each row takes 20–60 min on
 
 This work is released under the same license as the upstream EB-JEPA package
 - see [`LICENSE.md`](LICENSE.md).
+
+  
