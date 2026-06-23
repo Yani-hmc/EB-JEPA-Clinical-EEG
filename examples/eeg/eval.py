@@ -54,7 +54,7 @@ def extract_features(encoder, split, device, pool=True):
 
 
 # --------------------------------------------------------------------------- #
-# PROBE + METRIC  — # TODO
+# PROBE + METRIC  — team-written (not organizer-provided)
 # --------------------------------------------------------------------------- #
 def _metrics(yev, pred, proba, ytr):
     """Shared metric set: accuracy / balanced-acc / precision / recall / F1 / AUROC."""

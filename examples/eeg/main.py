@@ -31,7 +31,7 @@ from examples.eeg.spectral_losses import (MultiScaleSpectralLoss,
 
 
 # --------------------------------------------------------------------------- #
-# 1) ENCODER  — # TODO
+# 1) ENCODER  — team-written (not organizer-provided)
 # --------------------------------------------------------------------------- #
 class EEG1DEncoder(nn.Module):
     """1D conv encoder over EEG windows [B, C=19, T].
@@ -87,7 +87,7 @@ def build_encoder(cfg):
 
 
 # --------------------------------------------------------------------------- #
-# 2) SSL OBJECTIVE  — # TODO
+# 2) SSL OBJECTIVE  — team-written (not organizer-provided)
 # --------------------------------------------------------------------------- #
 class TwoViewVICReg(nn.Module):
     """Two-view VICReg ("EB time-series JEPA", invariance form).

@@ -20,7 +20,7 @@ examples/eeg/
   cfgs/    train.yaml, eval.yaml
 ```
 
-## What you implement (the `# TODO`s)
+## What the team wrote (originally the `# TODO`s)
 1. `main.py:build_encoder` - a 1D encoder over `[B, 19, T]` (`represent() -> [B, D]`,
    and `frames()` if you go predictive).
 2. `main.py:build_ssl` - the SSL objective: two-view VICReg (`Projector` +
